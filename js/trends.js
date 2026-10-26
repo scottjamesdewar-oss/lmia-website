@@ -15,9 +15,12 @@ const els = {
   drillPrev: document.getElementById("drillPrev"),
   drillNext: document.getElementById("drillNext"),
   drillPageLabel: document.getElementById("drillPageLabel"),
+  drillFilters: document.getElementById("drillFilters"),
+  drillProvince: document.getElementById("drillProvince"),
 };
 
 const DRILL_PAGE_SIZE = 50;
+let PROVINCES = [];
 
 function isDark() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -57,6 +60,14 @@ async function init() {
   });
   els.loadStatus.hidden = true;
   els.chartsRoot.hidden = false;
+
+  const provRes = db.exec(
+    "SELECT DISTINCT province FROM lmia_employers WHERE province != '' ORDER BY province"
+  );
+  PROVINCES = provRes.length ? provRes[0].values.map((r) => r[0]) : [];
+  els.drillProvince.innerHTML =
+    `<option value="">All provinces</option>` +
+    PROVINCES.map((p) => `<option value="${p}">${p}</option>`).join("");
 
   drawVolumeChart(db);
   drawLmiaCountByOccupationChart(db);
@@ -100,6 +111,7 @@ function closeDrillDown() {
   drillState.path = [];
   els.drillList.innerHTML = "";
   els.drillPagination.hidden = true;
+  els.drillFilters.hidden = true;
 }
 
 function renderBreadcrumb() {
@@ -128,6 +140,7 @@ function renderBreadcrumb() {
 
 function renderOccupationsLevel({ db, valueColumn, valueLabel, year, byYear, topSet }) {
   els.drillPagination.hidden = true;
+  els.drillFilters.hidden = true;
   const yearMap = byYear.get(year);
   const rows = [...yearMap.entries()]
     .filter(([title]) => !topSet.has(title))
@@ -154,31 +167,42 @@ function renderOccupationsLevel({ db, valueColumn, valueLabel, year, byYear, top
   els.drillList.appendChild(frag);
 }
 
-function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page }) {
+function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page, province = "" }) {
+  els.drillFilters.hidden = false;
+  if (els.drillProvince.value !== province) els.drillProvince.value = province;
+  els.drillProvince.onchange = () => {
+    renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: 0, province: els.drillProvince.value });
+  };
+
+  const whereProvince = province ? "AND e.province = ?" : "";
+  const params = province ? [occupation, year, province] : [occupation, year];
+
   const countRes = db.exec(
     `SELECT COUNT(*) FROM employer_occupation_year eoy
      JOIN occupations o ON o.id = eoy.occupation_id
-     WHERE o.title = ? AND eoy.year = ?`,
-    [occupation, year]
+     JOIN lmia_employers e ON e.id = eoy.employer_id
+     WHERE o.title = ? AND eoy.year = ? ${whereProvince}`,
+    params
   );
   const total = countRes.length ? countRes[0].values[0][0] : 0;
 
   const dataRes = db.exec(
-    `SELECT e.employer, e.address, e.fsa, e.is_noncompliant, eoy.${valueColumn}
+    `SELECT e.employer, e.address, e.fsa, e.province, e.is_noncompliant, eoy.${valueColumn}
      FROM employer_occupation_year eoy
      JOIN occupations o ON o.id = eoy.occupation_id
      JOIN lmia_employers e ON e.id = eoy.employer_id
-     WHERE o.title = ? AND eoy.year = ?
-     ORDER BY e.fsa ASC, eoy.${valueColumn} DESC
+     WHERE o.title = ? AND eoy.year = ? ${whereProvince}
+     ORDER BY eoy.${valueColumn} DESC, e.fsa ASC
      LIMIT ? OFFSET ?`,
-    [occupation, year, DRILL_PAGE_SIZE, page * DRILL_PAGE_SIZE]
+    [...params, DRILL_PAGE_SIZE, page * DRILL_PAGE_SIZE]
   );
   const rows = dataRes.length ? dataRes[0].values : [];
 
-  els.drillStatus.textContent = `${total.toLocaleString()} employers — ${occupation}, ${year}, sorted by postal code`;
+  const provinceNote = province ? `, ${province}` : "";
+  els.drillStatus.textContent = `${total.toLocaleString()} employers — ${occupation}, ${year}${provinceNote}, sorted by ${valueLabel}`;
   els.drillList.innerHTML = "";
   const frag = document.createDocumentFragment();
-  for (const [employer, address, fsa, isNc, value] of rows) {
+  for (const [employer, address, , , isNc, value] of rows) {
     const row = document.createElement("div");
     row.className = "drill-row static";
     row.innerHTML = `
@@ -196,7 +220,7 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
       flag.title = "Also found non-compliant";
       nameEl.appendChild(flag);
     }
-    row.querySelector(".drill-row-sub").textContent = `${address}${fsa ? ` (${fsa})` : ""}`;
+    row.querySelector(".drill-row-sub").textContent = address;
     row.querySelector(".drill-row-value").textContent = `${value.toLocaleString()} ${valueLabel}`;
     frag.appendChild(row);
   }
@@ -206,9 +230,9 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
   els.drillPagination.hidden = total <= DRILL_PAGE_SIZE;
   els.drillPageLabel.textContent = `Page ${page + 1} of ${totalPages.toLocaleString()}`;
   els.drillPrev.disabled = page === 0;
-  els.drillPrev.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page - 1 });
+  els.drillPrev.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page - 1, province });
   els.drillNext.disabled = (page + 1) * DRILL_PAGE_SIZE >= total;
-  els.drillNext.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page + 1 });
+  els.drillNext.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page + 1, province });
 }
 
 els.drillClose.addEventListener("click", closeDrillDown);

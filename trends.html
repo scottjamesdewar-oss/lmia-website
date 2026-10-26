@@ -52,8 +52,8 @@
         list is long-tailed across 569 distinct titles). <strong>Click
         any segment of a bar</strong> to drill in: an "Other" segment
         opens the list of occupations it contains; any other segment
-        goes straight to the list of employers, by postal code. The
-        government's 2014&ndash;2015 releases didn't list
+        goes straight to the list of employers, ranked by positions and
+        filterable by province. The government's 2014&ndash;2015 releases didn't list
         occupations at all, so those two years aren't shown here (they're
         still in the LMIA Database). 2026 includes only Q1 so far
         &mdash; don't read it as a drop from 2025.
@@ -71,8 +71,8 @@
         the majority here &mdash; LMIA counts are spread across more
         occupations than positions are). <strong>Click any segment</strong>
         to drill in &mdash; "Other" opens the occupation list, any other
-        segment goes straight to the employer list by postal code. The
-        government's
+        segment goes straight to the employer list, ranked by approved LMIAs
+        and filterable by province. The government's
         2014&ndash;2015 releases didn't list occupations at
         all, so those two years aren't shown. 2026 includes only Q1.
       </p>
@@ -128,6 +128,10 @@
         <button id="drillClose" type="button" class="drill-close" aria-label="Close">&times;</button>
       </div>
       <p id="drillStatus" class="result-count"></p>
+      <div id="drillFilters" class="drill-filters" hidden>
+        <label for="drillProvince">Province</label>
+        <select id="drillProvince"></select>
+      </div>
       <div id="drillList" class="drill-list"></div>
       <div id="drillPagination" class="pagination" hidden>
         <button id="drillPrev" type="button">&larr; Previous</button>
