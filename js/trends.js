@@ -48,10 +48,16 @@ async function init() {
   els.chartsRoot.hidden = false;
 
   drawVolumeChart(db);
+  drawLmiaCountByOccupationChart(db);
   drawFranchiseChart(db);
   drawOccupationChart(db);
   drawStreamShareChart(db);
   drawProvinceChart(db);
+}
+
+function cleanOccupationTitle(occupation) {
+  const i = occupation.indexOf("-");
+  return i > 0 ? occupation.slice(i + 1) : occupation;
 }
 
 function drawVolumeChart(db) {
@@ -74,6 +80,59 @@ function drawVolumeChart(db) {
   new Chart(document.getElementById("volumeChart"), {
     type: "bar",
     data: { labels: periods, datasets },
+    options: baseOptions({
+      scales: {
+        x: { stacked: true, ticks: { color: "#9aa1ad" } },
+        y: { stacked: true, ticks: { color: "#9aa1ad" } },
+      },
+    }),
+  });
+}
+
+function drawLmiaCountByOccupationChart(db) {
+  const res = db.exec(
+    `SELECT SUBSTR(period, 1, 4) AS year, occupation, SUM(total_approved_lmias) AS lmias
+     FROM trend_occupation GROUP BY year, occupation`
+  );
+  const rows = res.length ? res[0].values : [];
+
+  const titleTotals = new Map();
+  const byYear = new Map(); // year -> Map(title -> lmias)
+  for (const [year, occupation, lmias] of rows) {
+    const title = cleanOccupationTitle(occupation);
+    titleTotals.set(title, (titleTotals.get(title) || 0) + lmias);
+    if (!byYear.has(year)) byYear.set(year, new Map());
+    const yearMap = byYear.get(year);
+    yearMap.set(title, (yearMap.get(title) || 0) + lmias);
+  }
+
+  const top3 = [...titleTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
+  const top3Set = new Set(top3);
+  const years = [...byYear.keys()].sort();
+
+  const series = [...top3, "Other"];
+  const colors = [PALETTE[0], PALETTE[1], PALETTE[2], "#7f7f7f"];
+
+  const datasets = series.map((title, i) => ({
+    label: title,
+    backgroundColor: colors[i],
+    stack: "lmias",
+    data: years.map((year) => {
+      const yearMap = byYear.get(year);
+      if (title === "Other") {
+        let total = 0;
+        for (const [t, v] of yearMap.entries()) {
+          if (!top3Set.has(t)) total += v;
+        }
+        return total;
+      }
+      return yearMap.get(title) || 0;
+    }),
+  }));
+
+  new Chart(document.getElementById("lmiaCountChart"), {
+    type: "bar",
+    data: { labels: years, datasets },
     options: baseOptions({
       scales: {
         x: { stacked: true, ticks: { color: "#9aa1ad" } },
