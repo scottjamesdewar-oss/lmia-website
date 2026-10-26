@@ -118,11 +118,11 @@ function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, topN = 4 }) {
 }
 
 function drawVolumeChart(db) {
-  drawYearlyTopOccupationChart(db, { canvasId: "volumeChart", valueColumn: "total_approved_positions" });
+  drawYearlyTopOccupationChart(db, { canvasId: "volumeChart", valueColumn: "total_approved_positions", topN: 8 });
 }
 
 function drawLmiaCountByOccupationChart(db) {
-  drawYearlyTopOccupationChart(db, { canvasId: "lmiaCountChart", valueColumn: "total_approved_lmias" });
+  drawYearlyTopOccupationChart(db, { canvasId: "lmiaCountChart", valueColumn: "total_approved_lmias", topN: 8 });
 }
 
 function drawFranchiseChart(db) {
