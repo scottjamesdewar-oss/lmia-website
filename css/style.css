@@ -226,6 +226,83 @@ main.wrap {
   cursor: default;
 }
 
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.chart-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+
+.chart-sub {
+  margin: 0 0 16px;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.chart-wrap {
+  position: relative;
+  height: 340px;
+}
+
+#mapWrap {
+  height: 65vh;
+  min-height: 420px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.map-controls button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.map-controls button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+.map-legend {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.leaflet-popup-content {
+  font-size: 0.85rem;
+}
+
+.leaflet-popup-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.leaflet-popup-content td {
+  padding: 2px 6px 2px 0;
+  font-size: 0.8rem;
+}
+
 .site-footer {
   margin-top: 32px;
   padding-top: 16px;

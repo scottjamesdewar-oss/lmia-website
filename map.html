@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map - TFW Program Violations Tracker</title>
+<meta name="description" content="Map of approved LMIA activity across Canada by quarter, sized by approved positions, aggregated by postal-code area.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>TFW Program Violations Tracker</h1>
+    <p class="subtitle">
+      Approved LMIA activity by location and quarter. Circle size =
+      total approved positions in that postal-code area for the selected
+      quarter.
+    </p>
+    <nav class="site-nav">
+      <a href="index.html">Violations</a>
+      <a href="lmia.html">LMIA Database</a>
+      <a href="map.html" class="active">Map</a>
+      <a href="trends.html">Trends</a>
+      <a href="about.html">About &amp; context</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="notice">
+    <p>
+      <strong>What this shows:</strong> circles are grouped by postal
+      code area (the first 3 characters, e.g. "T4R"), not exact addresses
+      &mdash; Canada's full postal-code-to-location data isn't public for
+      free reuse, so this is neighbourhood-level, not building-level.
+      Click a circle to see the individual employers behind it. A location
+      having approved LMIAs is <strong>not evidence of wrongdoing</strong>.
+    </p>
+  </section>
+
+  <div class="map-controls" id="quarterControls"></div>
+  <p id="loadStatus" class="result-count">Loading database&hellip;</p>
+  <div id="mapWrap"></div>
+  <p class="map-legend">Circle area is proportional to total approved positions for the selected quarter. Click a circle for details.</p>
+
+  <footer class="site-footer">
+    <p>
+      Source: <a href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97" target="_blank" rel="noopener">Government of Canada &ndash; Positive LMIA Employers List (open data)</a>.
+      Postal code area centroids from <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a> (CC BY 4.0).
+      Map tiles &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.
+      This site is independently run and is not affiliated with the Government of Canada.
+    </p>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="js/db.js"></script>
+<script src="js/map.js"></script>
+</body>
+</html>

@@ -4,5 +4,6 @@ __pycache__/
 # Large intermediate/cache files - regenerate with the import scripts.
 # data/site.sqlite is the one data artifact the site actually ships.
 data/_lmia_raw/
+data/_geocode/
 data/non_compliant.raw.json
 data/non_compliant_employers.json

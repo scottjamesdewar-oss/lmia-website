@@ -8,6 +8,11 @@ A static, searchable site built on two Government of Canada open datasets:
 - **LMIA Database** — every employer approved for a positive Labour Market
   Impact Assessment since 2014, cross-referenced against the violations
   list.
+- **Map** — approved-LMIA activity by postal-code area and quarter
+  (Leaflet, circles sized by approved positions, click for the employer
+  list behind a circle).
+- **Trends** — charts on top franchise brands, top occupations hired for,
+  program-stream mix over time, and top provinces (Chart.js).
 
 ## Why two separate lists
 
@@ -34,17 +39,21 @@ module).
   list (also used as a library by `build_database.py`).
 - `scripts/import_lmia.py` — fetches & parses every quarterly/annual
   positive-LMIA release since 2014 (also used as a library).
-- `scripts/build_database.py` — the actual build: runs both of the above
-  and writes `data/site.sqlite` with indexes and a `lmia_employers`
-  ↔ `non_compliant` cross-reference flag.
+- `scripts/build_database.py` — the actual build: runs both of the above,
+  geocodes employers to postal-code-area (FSA) centroids, and writes
+  `data/site.sqlite` with indexes, a `lmia_employers` ↔ `non_compliant`
+  cross-reference flag, map aggregates (`lmia_map_points`), and trend
+  aggregates (`trend_stream`, `trend_province`, `trend_occupation`,
+  `trend_franchise`).
 - `data/site.sqlite` — the one data file the site ships.
 - `data/reason_codes.json` — small numeric reason-code → text map, used
   for the violations page's reason filter.
-- `data/_lmia_raw/` — gitignored cache of downloaded source files, so
-  re-running the build doesn't re-download everything.
-- `index.html` (violations), `lmia.html` (LMIA database), `about.html`.
+- `data/_lmia_raw/`, `data/_geocode/` — gitignored caches of downloaded
+  source files, so re-running the build doesn't re-download everything.
+- `index.html` (violations), `lmia.html` (LMIA database), `map.html`,
+  `trends.html`, `about.html`.
 - `css/style.css`, `js/db.js` (shared sql.js loader), `js/app.js`,
-  `js/lmia.js`.
+  `js/lmia.js`, `js/map.js`, `js/trends.js`.
 
 ## Updating the data
 

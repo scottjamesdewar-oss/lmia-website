@@ -8,8 +8,10 @@ search; the cdnjs sql.js build has no FTS5 module) against it client-side.
 
 Run: python scripts/build_database.py
 """
+import re
 import sqlite3
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -20,6 +22,13 @@ import import_lmia as lmia_mod  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
 DB_PATH = DATA_DIR / "site.sqlite"
+GEOCODE_CACHE_DIR = DATA_DIR / "_geocode"
+FSA_CENTROIDS_URL = "https://download.geonames.org/export/zip/CA.zip"
+
+POSTAL_FSA_RE = re.compile(r"\b([A-Za-z]\d[A-Za-z])\s?\d[A-Za-z]\d\b")
+FRANCHISE_RE = re.compile(
+    r"\b(?:o/?a|d/?b/?a|operating as|doing business as)\.?\s+(.+)$", re.IGNORECASE
+)
 
 
 SCHEMA = """
@@ -37,7 +46,58 @@ CREATE TABLE lmia_employers (
     first_period TEXT,
     last_period TEXT,
     periods_seen INTEGER,
-    is_noncompliant INTEGER NOT NULL DEFAULT 0
+    is_noncompliant INTEGER NOT NULL DEFAULT 0,
+    fsa TEXT,
+    lat REAL,
+    lng REAL
+);
+
+DROP TABLE IF EXISTS lmia_map_points;
+CREATE TABLE lmia_map_points (
+    id INTEGER PRIMARY KEY,
+    fsa TEXT NOT NULL,
+    period TEXT NOT NULL,
+    province TEXT,
+    lat REAL,
+    lng REAL,
+    employer_count INTEGER,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
+);
+
+DROP TABLE IF EXISTS trend_stream;
+CREATE TABLE trend_stream (
+    period TEXT NOT NULL,
+    stream TEXT NOT NULL,
+    employer_count INTEGER,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
+);
+
+DROP TABLE IF EXISTS trend_province;
+CREATE TABLE trend_province (
+    period TEXT NOT NULL,
+    province TEXT NOT NULL,
+    employer_count INTEGER,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
+);
+
+DROP TABLE IF EXISTS trend_occupation;
+CREATE TABLE trend_occupation (
+    period TEXT NOT NULL,
+    occupation TEXT NOT NULL,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
+);
+
+DROP TABLE IF EXISTS trend_franchise;
+CREATE TABLE trend_franchise (
+    period TEXT NOT NULL,
+    brand TEXT NOT NULL,
+    employer_count INTEGER,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
 );
 
 DROP TABLE IF EXISTS non_compliant;
@@ -96,7 +156,48 @@ def build_non_compliant(conn: sqlite3.Connection) -> set[str]:
     return keys
 
 
-def build_lmia(conn: sqlite3.Connection, noncompliant_keys: set[str]) -> None:
+def load_fsa_centroids() -> dict[str, tuple[float, float, str]]:
+    """Returns {FSA: (lat, lng, province)} from GeoNames' Canadian postal
+    code dataset (CC BY 4.0 - https://www.geonames.org/)."""
+    import io
+    import zipfile
+
+    GEOCODE_CACHE_DIR.mkdir(exist_ok=True)
+    cache_path = GEOCODE_CACHE_DIR / "CA.txt"
+    if cache_path.exists():
+        text = cache_path.read_text(encoding="utf-8")
+    else:
+        print("Downloading FSA centroid data (GeoNames)...")
+        raw = lmia_mod.fetch_bytes(FSA_CENTROIDS_URL)
+        with zipfile.ZipFile(io.BytesIO(raw)) as zf:
+            text = zf.read("CA.txt").decode("utf-8")
+        cache_path.write_text(text, encoding="utf-8")
+
+    centroids: dict[str, tuple[float, float, str]] = {}
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        cols = line.split("\t")
+        fsa, province, lat, lng = cols[1], cols[3], cols[9], cols[10]
+        centroids[fsa.upper()] = (float(lat), float(lng), province)
+    print(f"  loaded {len(centroids)} FSA centroids")
+    return centroids
+
+
+def extract_fsa(address: str) -> str:
+    m = POSTAL_FSA_RE.search(address)
+    return m.group(1).upper() if m else ""
+
+
+def extract_franchise_brand(employer: str) -> str:
+    m = FRANCHISE_RE.search(employer)
+    if not m:
+        return ""
+    brand = m.group(1).strip().rstrip(".").strip()
+    return brand
+
+
+def fetch_lmia_detail_rows() -> list[dict]:
     DATA_DIR.mkdir(exist_ok=True)
     lmia_mod.RAW_DIR.mkdir(exist_ok=True)
 
@@ -131,7 +232,15 @@ def build_lmia(conn: sqlite3.Connection, noncompliant_keys: set[str]) -> None:
         detail_rows.extend(records)
 
     print(f"Total raw LMIA rows: {len(detail_rows)}")
+    return detail_rows
 
+
+def build_lmia_employers(
+    conn: sqlite3.Connection,
+    detail_rows: list[dict],
+    noncompliant_keys: set[str],
+    fsa_centroids: dict[str, tuple[float, float, str]],
+) -> None:
     aggregated: dict[tuple[str, str], dict] = {}
     for rec in detail_rows:
         employer = rec.get("employer", "")
@@ -169,6 +278,9 @@ def build_lmia(conn: sqlite3.Connection, noncompliant_keys: set[str]) -> None:
     for bucket in aggregated.values():
         periods_sorted = sorted(bucket["periods"])
         is_nc = 1 if bucket["employer_key"] in noncompliant_keys else 0
+        fsa = extract_fsa(bucket["address"])
+        centroid = fsa_centroids.get(fsa)
+        lat, lng = (centroid[0], centroid[1]) if centroid else (None, None)
         employer_insert.append(
             (
                 bucket["employer"],
@@ -183,6 +295,9 @@ def build_lmia(conn: sqlite3.Connection, noncompliant_keys: set[str]) -> None:
                 periods_sorted[-1] if periods_sorted else "",
                 len(periods_sorted),
                 is_nc,
+                fsa,
+                lat,
+                lng,
             )
         )
 
@@ -191,9 +306,139 @@ def build_lmia(conn: sqlite3.Connection, noncompliant_keys: set[str]) -> None:
         """INSERT INTO lmia_employers
            (employer, employer_key, address, province, streams, occupation_count,
             total_approved_lmias, total_approved_positions, first_period,
-            last_period, periods_seen, is_noncompliant)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            last_period, periods_seen, is_noncompliant, fsa, lat, lng)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         employer_insert,
+    )
+
+
+def build_map_points(
+    conn: sqlite3.Connection,
+    detail_rows: list[dict],
+    fsa_centroids: dict[str, tuple[float, float, str]],
+) -> None:
+    buckets: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"employers": set(), "lmias": 0, "positions": 0, "province": ""}
+    )
+    for rec in detail_rows:
+        fsa = extract_fsa(rec.get("address", ""))
+        if not fsa or fsa not in fsa_centroids:
+            continue
+        key = (fsa, rec["period"])
+        b = buckets[key]
+        b["employers"].add(lmia_mod.normalize_key(rec.get("employer", "")))
+        b["lmias"] += lmia_mod.parse_int(rec.get("approved_lmias")) or 1
+        b["positions"] += lmia_mod.parse_int(rec.get("approved_positions"))
+        if not b["province"]:
+            b["province"] = rec.get("province", "")
+
+    rows = []
+    for (fsa, period), b in buckets.items():
+        lat, lng, province = fsa_centroids[fsa]
+        rows.append(
+            (
+                fsa,
+                period,
+                b["province"] or province,
+                lat,
+                lng,
+                len(b["employers"]),
+                b["lmias"],
+                b["positions"],
+            )
+        )
+
+    print(f"Inserting {len(rows)} map point rows (FSA x period)...")
+    conn.executemany(
+        """INSERT INTO lmia_map_points
+           (fsa, period, province, lat, lng, employer_count,
+            total_approved_lmias, total_approved_positions)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        rows,
+    )
+
+
+def build_trends(conn: sqlite3.Connection, detail_rows: list[dict]) -> None:
+    stream_buckets: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"employers": set(), "lmias": 0, "positions": 0}
+    )
+    province_buckets: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"employers": set(), "lmias": 0, "positions": 0}
+    )
+    occupation_buckets: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"lmias": 0, "positions": 0}
+    )
+    franchise_buckets: dict[tuple[str, str], dict] = defaultdict(
+        lambda: {"employers": set(), "lmias": 0, "positions": 0}
+    )
+
+    for rec in detail_rows:
+        period = rec["period"]
+        employer_key = lmia_mod.normalize_key(rec.get("employer", ""))
+        lmias = lmia_mod.parse_int(rec.get("approved_lmias")) or 1
+        positions = lmia_mod.parse_int(rec.get("approved_positions"))
+
+        stream = rec.get("stream", "").strip()
+        if stream:
+            b = stream_buckets[(period, stream)]
+            b["employers"].add(employer_key)
+            b["lmias"] += lmias
+            b["positions"] += positions
+
+        province = rec.get("province", "").strip()
+        if province:
+            b = province_buckets[(period, province)]
+            b["employers"].add(employer_key)
+            b["lmias"] += lmias
+            b["positions"] += positions
+
+        occupation = rec.get("occupation", "").strip()
+        if occupation:
+            b = occupation_buckets[(period, occupation)]
+            b["lmias"] += lmias
+            b["positions"] += positions
+
+        brand = extract_franchise_brand(rec.get("employer", ""))
+        if brand:
+            b = franchise_buckets[(period, brand.upper())]
+            b["employers"].add(employer_key)
+            b["lmias"] += lmias
+            b["positions"] += positions
+
+    print(f"Inserting {len(stream_buckets)} trend_stream rows...")
+    conn.executemany(
+        "INSERT INTO trend_stream (period, stream, employer_count, total_approved_lmias, total_approved_positions) VALUES (?,?,?,?,?)",
+        [
+            (period, stream, len(b["employers"]), b["lmias"], b["positions"])
+            for (period, stream), b in stream_buckets.items()
+        ],
+    )
+
+    print(f"Inserting {len(province_buckets)} trend_province rows...")
+    conn.executemany(
+        "INSERT INTO trend_province (period, province, employer_count, total_approved_lmias, total_approved_positions) VALUES (?,?,?,?,?)",
+        [
+            (period, province, len(b["employers"]), b["lmias"], b["positions"])
+            for (period, province), b in province_buckets.items()
+        ],
+    )
+
+    print(f"Inserting {len(occupation_buckets)} trend_occupation rows...")
+    conn.executemany(
+        "INSERT INTO trend_occupation (period, occupation, total_approved_lmias, total_approved_positions) VALUES (?,?,?,?)",
+        [
+            (period, occupation, b["lmias"], b["positions"])
+            for (period, occupation), b in occupation_buckets.items()
+        ],
+    )
+
+    print(f"Inserting {len(franchise_buckets)} trend_franchise rows...")
+    conn.executemany(
+        "INSERT INTO trend_franchise (period, brand, employer_count, total_approved_lmias, total_approved_positions) VALUES (?,?,?,?,?)",
+        [
+            (period, brand, len(b["employers"]), b["lmias"], b["positions"])
+            for (period, brand), b in franchise_buckets.items()
+        ],
     )
 
 
@@ -209,6 +454,15 @@ def build_indexes(conn: sqlite3.Connection) -> None:
         CREATE INDEX idx_nc_op_key ON non_compliant(operating_name_key);
         CREATE INDEX idx_nc_legal_key ON non_compliant(legal_name_key);
         CREATE INDEX idx_nc_date ON non_compliant(decision_date);
+
+        CREATE INDEX idx_lmia_employers_fsa ON lmia_employers(fsa);
+        CREATE INDEX idx_map_points_period ON lmia_map_points(period);
+        CREATE INDEX idx_map_points_fsa ON lmia_map_points(fsa);
+
+        CREATE INDEX idx_trend_stream_period ON trend_stream(period);
+        CREATE INDEX idx_trend_province_period ON trend_province(period);
+        CREATE INDEX idx_trend_occupation_period ON trend_occupation(period);
+        CREATE INDEX idx_trend_franchise_period ON trend_franchise(period);
         """
     )
 
@@ -223,8 +477,12 @@ def main() -> None:
     conn = sqlite3.connect(DB_PATH)
     conn.executescript(SCHEMA)
 
+    fsa_centroids = load_fsa_centroids()
     noncompliant_keys = build_non_compliant(conn)
-    build_lmia(conn, noncompliant_keys)
+    detail_rows = fetch_lmia_detail_rows()
+    build_lmia_employers(conn, detail_rows, noncompliant_keys, fsa_centroids)
+    build_map_points(conn, detail_rows, fsa_centroids)
+    build_trends(conn, detail_rows)
     conn.commit()
 
     build_indexes(conn)
