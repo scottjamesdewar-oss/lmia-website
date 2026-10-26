@@ -56,7 +56,8 @@ async function init() {
 
 function drawVolumeChart(db) {
   const res = db.exec(
-    "SELECT period, stream, SUM(total_approved_positions) FROM trend_stream GROUP BY period, stream ORDER BY period"
+    `SELECT SUBSTR(period, 1, 4) AS year, stream, SUM(total_approved_positions)
+     FROM trend_stream GROUP BY year, stream ORDER BY year`
   );
   const rows = res.length ? res[0].values : [];
   const periods = [...new Set(rows.map((r) => r[0]))].sort();
@@ -75,7 +76,7 @@ function drawVolumeChart(db) {
     data: { labels: periods, datasets },
     options: baseOptions({
       scales: {
-        x: { stacked: true, ticks: { color: "#9aa1ad", maxRotation: 90, minRotation: 90 } },
+        x: { stacked: true, ticks: { color: "#9aa1ad" } },
         y: { stacked: true, ticks: { color: "#9aa1ad" } },
       },
     }),
@@ -125,7 +126,8 @@ function drawOccupationChart(db) {
 
 function drawStreamShareChart(db) {
   const res = db.exec(
-    "SELECT period, stream, SUM(total_approved_positions) FROM trend_stream GROUP BY period, stream ORDER BY period"
+    `SELECT SUBSTR(period, 1, 4) AS year, stream, SUM(total_approved_positions)
+     FROM trend_stream GROUP BY year, stream ORDER BY year`
   );
   const rows = res.length ? res[0].values : [];
   const periods = [...new Set(rows.map((r) => r[0]))].sort();
@@ -150,7 +152,7 @@ function drawStreamShareChart(db) {
     data: { labels: periods, datasets },
     options: baseOptions({
       scales: {
-        x: { stacked: true, ticks: { color: "#9aa1ad", maxRotation: 90, minRotation: 90 } },
+        x: { stacked: true, ticks: { color: "#9aa1ad" } },
         y: { stacked: true, max: 100, ticks: { color: "#9aa1ad", callback: (v) => `${v}%` } },
       },
     }),
