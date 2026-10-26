@@ -7,3 +7,10 @@ data/_lmia_raw/
 data/_geocode/
 data/non_compliant.raw.json
 data/non_compliant_employers.json
+
+# Wikipedia-matching run artifacts - regenerate with
+# scripts/match_wikipedia_companies.py. js/company_info_auto.js (the
+# file the site actually ships) is committed separately as the run
+# progresses.
+scripts/wikipedia_match_cache.jsonl
+scripts/match_wikipedia.log
