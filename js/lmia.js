@@ -10,6 +10,7 @@ const els = {
   search: document.getElementById("search"),
   provinceFilter: document.getElementById("provinceFilter"),
   flagFilter: document.getElementById("flagFilter"),
+  streamFilter: document.getElementById("streamFilter"),
   sort: document.getElementById("sort"),
   results: document.getElementById("results"),
   resultCount: document.getElementById("resultCount"),
@@ -20,6 +21,15 @@ const els = {
   prevPage: document.getElementById("prevPage"),
   nextPage: document.getElementById("nextPage"),
   pageLabel: document.getElementById("pageLabel"),
+};
+
+// The source data's "streams" field is a free-text, comma-joined list
+// per employer (lifetime, not per-application), with a couple of
+// variant labels for the same real stream (quarterly files differ in
+// how they spell it, including one French label that leaked through
+// un-translated). These aliases keep the filter meaningful despite that.
+const STREAM_ALIASES = {
+  "Global Talent": ["Global Talent", "Global Talent Stream", "Talent mondial"],
 };
 
 const SORT_SQL = {
@@ -68,6 +78,10 @@ async function init() {
     runQuery();
   });
   els.flagFilter.addEventListener("change", () => {
+    state.page = 0;
+    runQuery();
+  });
+  els.streamFilter.addEventListener("change", () => {
     state.page = 0;
     runQuery();
   });
@@ -120,6 +134,14 @@ function buildWhere() {
   }
   if (els.flagFilter.value) {
     clauses.push("e.is_noncompliant = 1");
+  }
+  if (els.streamFilter.value) {
+    const aliases = STREAM_ALIASES[els.streamFilter.value] || [els.streamFilter.value];
+    const streamClauses = aliases.map(() => "(',' || REPLACE(e.streams, ', ', ',') || ',') LIKE ? ESCAPE '\\'");
+    clauses.push(`(${streamClauses.join(" OR ")})`);
+    for (const alias of aliases) {
+      params.push(`%,${likePattern(alias).slice(1, -1)},%`);
+    }
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";

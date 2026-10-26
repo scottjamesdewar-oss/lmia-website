@@ -96,7 +96,7 @@ class RateLimiter:
             time.sleep(delay)
 
 
-rate_limiter = RateLimiter(0.08)  # ~12.5 req/s across all threads
+rate_limiter = RateLimiter(0.02)  # ~50 req/s across all threads
 session = requests.Session()
 session.headers.update({"User-Agent": USER_AGENT})
 cache_lock = threading.Lock()
@@ -326,7 +326,7 @@ def main():
                 )
                 build_company_info_auto()
 
-    with ThreadPoolExecutor(max_workers=6) as pool:
+    with ThreadPoolExecutor(max_workers=32) as pool:
         list(pool.map(worker, todo))
 
     build_company_info_auto()
