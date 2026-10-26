@@ -187,7 +187,7 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
   const total = countRes.length ? countRes[0].values[0][0] : 0;
 
   const dataRes = db.exec(
-    `SELECT e.employer, e.address, e.fsa, e.province, e.is_noncompliant, eoy.${valueColumn}
+    `SELECT e.employer, e.address, e.fsa, e.province, e.is_noncompliant, eoy.${valueColumn}, e.employer_key
      FROM employer_occupation_year eoy
      JOIN occupations o ON o.id = eoy.occupation_id
      JOIN lmia_employers e ON e.id = eoy.employer_id
@@ -202,13 +202,14 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
   els.drillStatus.textContent = `${total.toLocaleString()} employers — ${occupation}, ${year}${provinceNote}, sorted by ${valueLabel}`;
   els.drillList.innerHTML = "";
   const frag = document.createDocumentFragment();
-  for (const [employer, address, , , isNc, value] of rows) {
+  for (const [employer, address, , , isNc, value, employerKey] of rows) {
     const row = document.createElement("div");
     row.className = "drill-row static";
     row.innerHTML = `
       <div class="drill-row-main">
         <div class="drill-row-name"></div>
         <div class="drill-row-sub"></div>
+        <div class="drill-row-info"></div>
       </div>
       <div class="drill-row-value"></div>`;
     const nameEl = row.querySelector(".drill-row-name");
@@ -221,6 +222,21 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
       nameEl.appendChild(flag);
     }
     row.querySelector(".drill-row-sub").textContent = address;
+    const infoEl = row.querySelector(".drill-row-info");
+    const info = companyInfoFor(employerKey);
+    if (info) {
+      infoEl.textContent = info.description;
+      if (info.url) {
+        const a = document.createElement("a");
+        a.href = info.url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = " Source";
+        infoEl.appendChild(a);
+      }
+    } else {
+      infoEl.remove();
+    }
     row.querySelector(".drill-row-value").textContent = `${value.toLocaleString()} ${valueLabel}`;
     frag.appendChild(row);
   }

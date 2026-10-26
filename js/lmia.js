@@ -137,7 +137,7 @@ function runQuery() {
   const dataSql = `
     SELECT e.employer, e.address, e.province, e.streams, e.total_approved_lmias,
            e.total_approved_positions, e.first_period, e.last_period,
-           e.periods_seen, e.is_noncompliant
+           e.periods_seen, e.is_noncompliant, e.employer_key
     FROM ${fromClause} ${where}
     ORDER BY ${orderBy}
     LIMIT ? OFFSET ?`;
@@ -198,6 +198,7 @@ function renderCard(row) {
   const [
     employer, address, province, streams, totalLmias,
     totalPositions, firstPeriod, lastPeriod, periodsSeen, isNoncompliant,
+    employerKey,
   ] = row;
 
   const node = els.template.content.cloneNode(true);
@@ -223,6 +224,23 @@ function renderCard(row) {
     registryEl.hidden = false;
   } else {
     registryEl.remove();
+  }
+
+  const infoEl = node.querySelector(".card-info");
+  const info = companyInfoFor(employerKey);
+  if (info) {
+    infoEl.textContent = `${info.description} `;
+    if (info.url) {
+      const a = document.createElement("a");
+      a.href = info.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "Source →";
+      infoEl.appendChild(a);
+    }
+    infoEl.hidden = false;
+  } else {
+    infoEl.remove();
   }
 
   node.querySelector(".card-province").textContent = province;

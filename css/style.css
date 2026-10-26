@@ -376,6 +376,29 @@ main.wrap {
   color: var(--text-dim);
 }
 
+.drill-row-info {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-top: 4px;
+  max-width: 520px;
+}
+
+.drill-row-info a {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.card-info {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+.card-info a {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 .drill-row-value {
   font-size: 0.85rem;
   color: var(--text-dim);
