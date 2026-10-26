@@ -60,70 +60,44 @@ function cleanOccupationTitle(occupation) {
   return i > 0 ? occupation.slice(i + 1) : occupation;
 }
 
-function drawVolumeChart(db) {
+// Shared by both yearly occupation-stacked charts: fetches
+// (year, occupation, value) from trend_occupation, cleans NOC titles,
+// ranks the top N by all-time total, and builds a stacked-bar Chart.js
+// config with everything outside the top N folded into "Other".
+function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, topN = 4 }) {
   const res = db.exec(
-    `SELECT SUBSTR(period, 1, 4) AS year, stream, SUM(total_approved_positions)
-     FROM trend_stream GROUP BY year, stream ORDER BY year`
-  );
-  const rows = res.length ? res[0].values : [];
-  const periods = [...new Set(rows.map((r) => r[0]))].sort();
-  const streams = [...new Set(rows.map((r) => r[1]))].sort();
-
-  const lookup = new Map(rows.map((r) => [`${r[0]}|${r[1]}`, r[2]]));
-  const datasets = streams.map((stream, i) => ({
-    label: stream,
-    data: periods.map((p) => lookup.get(`${p}|${stream}`) || 0),
-    backgroundColor: PALETTE[i % PALETTE.length],
-    stack: "positions",
-  }));
-
-  new Chart(document.getElementById("volumeChart"), {
-    type: "bar",
-    data: { labels: periods, datasets },
-    options: baseOptions({
-      scales: {
-        x: { stacked: true, ticks: { color: "#9aa1ad" } },
-        y: { stacked: true, ticks: { color: "#9aa1ad" } },
-      },
-    }),
-  });
-}
-
-function drawLmiaCountByOccupationChart(db) {
-  const res = db.exec(
-    `SELECT SUBSTR(period, 1, 4) AS year, occupation, SUM(total_approved_lmias) AS lmias
+    `SELECT SUBSTR(period, 1, 4) AS year, occupation, SUM(${valueColumn}) AS v
      FROM trend_occupation GROUP BY year, occupation`
   );
   const rows = res.length ? res[0].values : [];
 
   const titleTotals = new Map();
-  const byYear = new Map(); // year -> Map(title -> lmias)
-  for (const [year, occupation, lmias] of rows) {
+  const byYear = new Map(); // year -> Map(title -> value)
+  for (const [year, occupation, value] of rows) {
     const title = cleanOccupationTitle(occupation);
-    titleTotals.set(title, (titleTotals.get(title) || 0) + lmias);
+    titleTotals.set(title, (titleTotals.get(title) || 0) + value);
     if (!byYear.has(year)) byYear.set(year, new Map());
     const yearMap = byYear.get(year);
-    yearMap.set(title, (yearMap.get(title) || 0) + lmias);
+    yearMap.set(title, (yearMap.get(title) || 0) + value);
   }
 
-  const TOP_N = 4;
-  const topN = [...titleTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N).map(([t]) => t);
-  const topNSet = new Set(topN);
+  const top = [...titleTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, topN).map(([t]) => t);
+  const topSet = new Set(top);
   const years = [...byYear.keys()].sort();
 
-  const series = [...topN, "Other"];
-  const colors = [...PALETTE.slice(0, TOP_N), "#7f7f7f"];
+  const series = [...top, "Other"];
+  const colors = [...PALETTE.slice(0, topN), "#7f7f7f"];
 
   const datasets = series.map((title, i) => ({
     label: title,
     backgroundColor: colors[i],
-    stack: "lmias",
+    stack: "v",
     data: years.map((year) => {
       const yearMap = byYear.get(year);
       if (title === "Other") {
         let total = 0;
         for (const [t, v] of yearMap.entries()) {
-          if (!topNSet.has(t)) total += v;
+          if (!topSet.has(t)) total += v;
         }
         return total;
       }
@@ -131,7 +105,7 @@ function drawLmiaCountByOccupationChart(db) {
     }),
   }));
 
-  new Chart(document.getElementById("lmiaCountChart"), {
+  new Chart(document.getElementById(canvasId), {
     type: "bar",
     data: { labels: years, datasets },
     options: baseOptions({
@@ -141,6 +115,14 @@ function drawLmiaCountByOccupationChart(db) {
       },
     }),
   });
+}
+
+function drawVolumeChart(db) {
+  drawYearlyTopOccupationChart(db, { canvasId: "volumeChart", valueColumn: "total_approved_positions" });
+}
+
+function drawLmiaCountByOccupationChart(db) {
+  drawYearlyTopOccupationChart(db, { canvasId: "lmiaCountChart", valueColumn: "total_approved_lmias" });
 }
 
 function drawFranchiseChart(db) {
