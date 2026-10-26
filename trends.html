@@ -55,11 +55,15 @@
     <article class="chart-card">
       <h2>Top franchise brands</h2>
       <p class="chart-sub">
-        Locations identified by an "operating as" / "doing business as" name
-        (e.g. "1234 Alberta Ltd. o/a Tim Hortons"). This undercounts brands
-        whose locations are named directly (plain "Tim Hortons",
-        "McDonald's Restaurants of Canada"), so treat it as a lower bound,
-        not a full franchise census.
+        Locations identified either by an explicit "o/a" / "d.b.a." / "c/o"
+        marker (e.g. "1234 Alberta Ltd. o/a Tim Hortons"), or &mdash; for
+        brands with enough of those explicit matches to trust &mdash; by the
+        brand name appearing anywhere in the business name (e.g. plain
+        "Tim Hortons", "989240 Alberta Ltd Tim Hortons"). It still won't
+        catch every franchisee (a location named only "Smith Holdings Inc."
+        with nothing indicating the brand isn't detectable from the name
+        alone), so treat this as a lower bound, not a full franchise
+        census.
       </p>
       <div class="chart-wrap"><canvas id="franchiseChart"></canvas></div>
     </article>

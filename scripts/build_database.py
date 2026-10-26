@@ -26,9 +26,18 @@ GEOCODE_CACHE_DIR = DATA_DIR / "_geocode"
 FSA_CENTROIDS_URL = "https://download.geonames.org/export/zip/CA.zip"
 
 POSTAL_FSA_RE = re.compile(r"\b([A-Za-z]\d[A-Za-z])\s?\d[A-Za-z]\d\b")
+# Explicit "operating as" markers - covers o/a, oa, d.b.a / dba / d b a
+# (with periods, slashes, or spaces between the letters), c/o, and the
+# spelled-out forms.
 FRANCHISE_RE = re.compile(
-    r"\b(?:o/?a|d/?b/?a|operating as|doing business as)\.?\s+(.+)$", re.IGNORECASE
+    r"\b(?:o\s?/?\s?a|d[\.\s]*b[\.\s]*a|c\s?/\s?o|operating as|doing business as)\.?\s+(.+)$",
+    re.IGNORECASE,
 )
+# A brand only needs this many *explicit* "o/a"-style matches before it's
+# trusted enough to also catch via plain substring match (pass 2 below) -
+# keeps noise out of the substring pass.
+FRANCHISE_SUBSTRING_MIN_COUNT = 5
+FRANCHISE_SUBSTRING_MAX_BRANDS = 150
 
 
 SCHEMA = """
@@ -187,14 +196,6 @@ def load_fsa_centroids() -> dict[str, tuple[float, float, str]]:
 def extract_fsa(address: str) -> str:
     m = POSTAL_FSA_RE.search(address)
     return m.group(1).upper() if m else ""
-
-
-def extract_franchise_brand(employer: str) -> str:
-    m = FRANCHISE_RE.search(employer)
-    if not m:
-        return ""
-    brand = m.group(1).strip().rstrip(".").strip()
-    return brand
 
 
 def fetch_lmia_detail_rows() -> list[dict]:
@@ -358,6 +359,58 @@ def build_map_points(
     )
 
 
+def build_franchise_assignments(detail_rows: list[dict]) -> list[str]:
+    """Two-pass franchise-brand assignment, one brand (or '') per record,
+    in the same order as detail_rows.
+
+    Pass 1: explicit "o/a" / "d.b.a." / "c/o" markers only - high
+    precision, but misses employers simply *named* after the brand
+    ("Tim Hortons", "989240 Alberta Ltd Tim Hortons",
+    "...Inc. (Tim Hortons)").
+
+    Pass 2: for records pass 1 didn't match, fall back to a plain
+    whole-word substring match against brands that pass 1 already found
+    at least FRANCHISE_SUBSTRING_MIN_COUNT times. Restricting the
+    substring pass to already-well-evidenced brands avoids false
+    positives from one-off parenthetical fragments, store-location
+    suffixes, etc. (see scripts/build_database.py history for examples
+    of why a blanket "trailing parenthetical = brand" rule isn't safe).
+    """
+    explicit = [""] * len(detail_rows)
+    counts: dict[str, int] = defaultdict(int)
+    for i, rec in enumerate(detail_rows):
+        m = FRANCHISE_RE.search(rec.get("employer", ""))
+        if m:
+            brand = m.group(1).strip().rstrip(".").strip().upper()
+            if brand:
+                explicit[i] = brand
+                counts[brand] += 1
+
+    known_brands = [b for b, c in counts.items() if c >= FRANCHISE_SUBSTRING_MIN_COUNT]
+    known_brands.sort(key=lambda b: counts[b], reverse=True)
+    known_brands = known_brands[:FRANCHISE_SUBSTRING_MAX_BRANDS]
+    print(f"  {len(known_brands)} brands qualify for substring fallback matching")
+
+    if not known_brands:
+        return explicit
+
+    combined = re.compile(
+        "|".join(r"\b" + re.escape(b) + r"\b" for b in sorted(known_brands, key=len, reverse=True)),
+        re.IGNORECASE,
+    )
+    assigned = explicit[:]
+    fallback_hits = 0
+    for i, rec in enumerate(detail_rows):
+        if assigned[i]:
+            continue
+        m = combined.search(rec.get("employer", ""))
+        if m:
+            assigned[i] = m.group(0).upper()
+            fallback_hits += 1
+    print(f"  substring fallback matched {fallback_hits} additional records")
+    return assigned
+
+
 def build_trends(conn: sqlite3.Connection, detail_rows: list[dict]) -> None:
     stream_buckets: dict[tuple[str, str], dict] = defaultdict(
         lambda: {"employers": set(), "lmias": 0, "positions": 0}
@@ -372,7 +425,10 @@ def build_trends(conn: sqlite3.Connection, detail_rows: list[dict]) -> None:
         lambda: {"employers": set(), "lmias": 0, "positions": 0}
     )
 
-    for rec in detail_rows:
+    print("Assigning franchise brands (two-pass)...")
+    franchise_assignments = build_franchise_assignments(detail_rows)
+
+    for rec, brand in zip(detail_rows, franchise_assignments):
         period = rec["period"]
         employer_key = lmia_mod.normalize_key(rec.get("employer", ""))
         lmias = lmia_mod.parse_int(rec.get("approved_lmias")) or 1
@@ -398,9 +454,8 @@ def build_trends(conn: sqlite3.Connection, detail_rows: list[dict]) -> None:
             b["lmias"] += lmias
             b["positions"] += positions
 
-        brand = extract_franchise_brand(rec.get("employer", ""))
         if brand:
-            b = franchise_buckets[(period, brand.upper())]
+            b = franchise_buckets[(period, brand)]
             b["employers"].add(employer_key)
             b["lmias"] += lmias
             b["positions"] += positions
