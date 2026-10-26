@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TFW Program Violations Tracker</title>
+<meta name="description" content="A searchable record of employers officially found non-compliant under Canada's Temporary Foreign Worker Program and International Mobility Program, sourced from Government of Canada public data.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>TFW Program Violations Tracker</h1>
+    <p class="subtitle">
+      A searchable record of employers that the Government of Canada has
+      <strong>officially found non-compliant</strong> under the Temporary
+      Foreign Worker Program (TFWP) or International Mobility Program (IMP).
+    </p>
+    <nav class="site-nav">
+      <a href="index.html" class="active">Database</a>
+      <a href="about.html">About &amp; context</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="notice">
+    <p>
+      <strong>What this list is:</strong> every row below reflects a final
+      compliance decision published by the Government of Canada &mdash; the
+      employer was inspected and found to have violated one or more
+      conditions of hiring a temporary foreign worker. It does <strong>not</strong>
+      include employers who simply applied for or received a Labour Market
+      Impact Assessment (LMIA); being approved for an LMIA is not evidence of
+      wrongdoing on its own. See <a href="about.html">About &amp; context</a>
+      for sourcing, licensing, and the limits of this data.
+    </p>
+  </section>
+
+  <section class="controls">
+    <input id="search" type="search" placeholder="Search business name, city, or province&hellip;" aria-label="Search">
+    <select id="statusFilter" aria-label="Filter by status">
+      <option value="">All statuses</option>
+      <option value="Eligible">Eligible (penalty only)</option>
+      <option value="Ineligible">Ineligible (currently banned)</option>
+    </select>
+    <select id="reasonFilter" aria-label="Filter by reason">
+      <option value="">All reasons</option>
+    </select>
+    <select id="sort" aria-label="Sort by">
+      <option value="date-desc">Newest decision first</option>
+      <option value="date-asc">Oldest decision first</option>
+      <option value="penalty-desc">Highest penalty first</option>
+      <option value="name-asc">Business name (A&ndash;Z)</option>
+    </select>
+  </section>
+
+  <p id="resultCount" class="result-count"></p>
+
+  <section id="results" class="results"></section>
+
+  <template id="row-template">
+    <article class="card">
+      <h3 class="card-name"></h3>
+      <p class="card-legal"></p>
+      <p class="card-address"></p>
+      <ul class="card-reasons"></ul>
+      <div class="card-meta">
+        <span class="card-date"></span>
+        <span class="card-penalty"></span>
+        <span class="card-status"></span>
+      </div>
+    </article>
+  </template>
+
+  <footer class="site-footer">
+    <p>
+      Source: <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employers-non-compliant.html" target="_blank" rel="noopener">Government of Canada &ndash; Employers who have been found non-compliant</a>.
+      Reproduced in part under Canada.ca's non-commercial reuse terms, with attribution.
+      Data snapshot: <span id="fetchedAt"></span>. This site is independently run and is not affiliated with the Government of Canada.
+    </p>
+  </footer>
+</main>
+
+<script src="js/app.js"></script>
+</body>
+</html>

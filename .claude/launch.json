@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "lmia-site",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8420", "--directory", "C:/Users/scott/projects/lmia-website"],
+      "port": 8420
+    }
+  ]
+}

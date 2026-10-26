@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About &amp; context - TFW Program Violations Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>TFW Program Violations Tracker</h1>
+    <nav class="site-nav">
+      <a href="index.html">Database</a>
+      <a href="about.html" class="active">About &amp; context</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap prose">
+  <h2>What this site is</h2>
+  <p>
+    This site republishes the Government of Canada's public list of
+    employers found non-compliant under the Temporary Foreign Worker
+    Program (TFWP) and International Mobility Program (IMP), in a
+    searchable format. Every entry represents a <strong>final compliance
+    decision</strong> made by Employment and Social Development Canada
+    (ESDC) after an inspection &mdash; not an allegation, and not simply a
+    business that applied for a Labour Market Impact Assessment (LMIA).
+  </p>
+
+  <h2>What this site is not</h2>
+  <p>
+    A business is not listed here just because it received a positive
+    LMIA. The federal government separately publishes a list of all
+    employers with an <em>approved</em> LMIA
+    (<a href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97" target="_blank" rel="noopener">open data portal</a>),
+    but approval alone is not evidence of wrongdoing, and that list is not
+    reproduced here for that reason. This tracker only includes employers
+    the government has already found, through its own inspection process,
+    to have violated program conditions.
+  </p>
+
+  <h2>Data source &amp; licensing</h2>
+  <p>
+    Data is pulled from the government's own published dataset at
+    <a href="https://www.canada.ca/content/dam/ircc/documents/json/non_compliant.json" target="_blank" rel="noopener">canada.ca/.../non_compliant.json</a>,
+    which backs the official page
+    <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employers-non-compliant.html" target="_blank" rel="noopener">Employers who have been found non-compliant</a>.
+    It is reproduced here in part under
+    <a href="https://www.canada.ca/en/transparency/terms.html" target="_blank" rel="noopener">Canada.ca's non-commercial reuse terms</a>,
+    with attribution and a link to the original. This site is
+    independently run and has no affiliation with, and is not endorsed by,
+    the Government of Canada.
+  </p>
+  <p>
+    The underlying government list is updated on an ongoing basis as new
+    compliance decisions are finalized &mdash; it is not a fixed quarterly
+    release. This site's snapshot is refreshed periodically by re-running an
+    import script; see the timestamp on the database page for the last
+    update.
+  </p>
+
+  <h2>Why this exists</h2>
+  <p>
+    Reporting and court records show that abuse of the TFW program is a
+    real, documented problem, not an isolated one:
+  </p>
+  <ul>
+    <li>
+      A Calgary restaurant case resulted in jail sentences after workers
+      were charged $8,000&ndash;$24,000 in supposed "government fees"
+      against an actual LMIA processing fee of $1,000
+      (<a href="https://www.hrreporter.com/news/hr-news/calgary-restaurant-partners-face-jail-time-over-tfwp-abuses/393898" target="_blank" rel="noopener">HR Reporter</a>).
+    </li>
+    <li>
+      CBC's investigation found LMIA-linked job offers being resold for
+      upwards of $27,000, despite employers being legally prohibited from
+      charging foreign workers recruitment fees
+      (<a href="https://www.cbc.ca/1.7350596" target="_blank" rel="noopener">CBC</a>).
+    </li>
+    <li>
+      ESDC's own compliance review for fiscal 2025&ndash;26 found 12% of
+      inspected employers non-compliant, with penalties exceeding $10.2
+      million and 30 employers banned from the program.
+    </li>
+  </ul>
+  <p>
+    This site's purpose is to make the government's own enforcement record
+    easier to search and browse &mdash; not to accuse any specific business
+    of wrongdoing beyond what the government has already formally found and
+    published. If you believe an entry is inaccurate, it should be raised
+    with ESDC/IRCC directly, since this site only mirrors their published
+    data.
+  </p>
+</main>
+</body>
+</html>
