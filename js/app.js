@@ -1,7 +1,6 @@
 const state = {
-  employers: [],
+  db: null,
   reasonCodes: {},
-  fetchedAt: "",
 };
 
 const els = {
@@ -11,21 +10,38 @@ const els = {
   sort: document.getElementById("sort"),
   results: document.getElementById("results"),
   resultCount: document.getElementById("resultCount"),
+  loadStatus: document.getElementById("loadStatus"),
   fetchedAt: document.getElementById("fetchedAt"),
   template: document.getElementById("row-template"),
 };
 
-async function init() {
-  const [employersRes, reasonsRes] = await Promise.all([
-    fetch("data/non_compliant_employers.json"),
-    fetch("data/reason_codes.json"),
-  ]);
-  const payload = await employersRes.json();
-  state.employers = payload.employers;
-  state.fetchedAt = payload.fetched_at;
-  state.reasonCodes = await reasonsRes.json();
+const SORT_SQL = {
+  "date-desc": "decision_date DESC",
+  "date-asc": "decision_date ASC",
+  "penalty-desc": "penalty_amount DESC",
+  "name-asc": "operating_name ASC",
+};
 
-  els.fetchedAt.textContent = new Date(state.fetchedAt).toLocaleDateString("en-CA");
+async function init() {
+  const [db, reasonCodes] = await Promise.all([
+    loadDatabase((received, total) => {
+      if (total) {
+        const mb = (received / 1e6).toFixed(1);
+        const totalMb = (total / 1e6).toFixed(1);
+        els.loadStatus.textContent = `Loading database… ${mb} / ${totalMb} MB`;
+      }
+    }),
+    fetch("data/reason_codes.json").then((r) => r.json()),
+  ]);
+  state.db = db;
+  state.reasonCodes = reasonCodes;
+  els.loadStatus.hidden = true;
+
+  const meta = db.exec("SELECT value FROM meta WHERE key='built_at'");
+  if (meta.length) {
+    els.fetchedAt.textContent = new Date(meta[0].values[0][0]).toLocaleDateString("en-CA");
+  }
+
   populateReasonFilter();
   render();
 
@@ -45,80 +61,98 @@ function populateReasonFilter() {
   }
 }
 
-function render() {
-  const query = els.search.value.trim().toLowerCase();
+function buildQuery() {
+  const query = els.search.value.trim();
   const statusWanted = els.statusFilter.value;
   const reasonWanted = els.reasonFilter.value;
   const sortMode = els.sort.value;
 
-  let filtered = state.employers.filter((e) => {
-    if (statusWanted && !e.status.startsWith(statusWanted)) return false;
-    if (reasonWanted && !e.reason_codes.includes(Number(reasonWanted))) return false;
-    if (query) {
-      const haystack = `${e.operating_name} ${e.legal_name} ${e.address}`.toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    return true;
-  });
+  const clauses = [];
+  const params = [];
+  const fromClause = "non_compliant n";
 
-  filtered = sortResults(filtered, sortMode);
+  if (query) {
+    const pattern = likePattern(query);
+    clauses.push("(n.operating_name LIKE ? ESCAPE '\\' OR n.legal_name LIKE ? ESCAPE '\\' OR n.address LIKE ? ESCAPE '\\')");
+    params.push(pattern, pattern, pattern);
+  }
+  if (statusWanted) {
+    clauses.push("n.status LIKE ?");
+    params.push(`${statusWanted}%`);
+  }
+  if (reasonWanted) {
+    clauses.push("(',' || n.reason_codes || ',') LIKE ?");
+    params.push(`%,${reasonWanted},%`);
+  }
 
-  els.resultCount.textContent = `${filtered.length.toLocaleString()} of ${state.employers.length.toLocaleString()} employers shown`;
+  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const orderBy = SORT_SQL[sortMode] || SORT_SQL["date-desc"];
+
+  const sql = `
+    SELECT n.operating_name, n.legal_name, n.address, n.reasons,
+           n.decision_date, n.penalty, n.status,
+           CAST(REPLACE(REPLACE(n.penalty, '$', ''), ',', '') AS INTEGER) AS penalty_amount
+    FROM ${fromClause}
+    ${where}
+    ORDER BY ${orderBy}
+    LIMIT 300`;
+
+  const countSql = `SELECT COUNT(*) FROM ${fromClause} ${where}`;
+
+  return { sql, countSql, params };
+}
+
+function render() {
+  const { sql, countSql, params } = buildQuery();
+
+  const countRes = state.db.exec(countSql, params);
+  const total = countRes.length ? countRes[0].values[0][0] : 0;
+
+  const dataRes = state.db.exec(sql, params);
+  const rows = dataRes.length ? dataRes[0].values : [];
+
+  const shown = Math.min(rows.length, 300);
+  els.resultCount.textContent =
+    total > shown
+      ? `${total.toLocaleString()} employers match (showing first ${shown})`
+      : `${total.toLocaleString()} employers match`;
 
   els.results.innerHTML = "";
   const frag = document.createDocumentFragment();
-  for (const e of filtered.slice(0, 300)) {
-    frag.appendChild(renderCard(e));
+  for (const row of rows) {
+    frag.appendChild(renderCard(row));
   }
   els.results.appendChild(frag);
 }
 
-function parsePenaltyAmount(penaltyText) {
-  const match = penaltyText.replace(/,/g, "").match(/\$(\d+)/);
-  return match ? Number(match[1]) : 0;
-}
+function renderCard(row) {
+  const [operatingName, legalName, address, reasonsText, decisionDate, penalty, status] = row;
 
-function sortResults(list, mode) {
-  const copy = [...list];
-  switch (mode) {
-    case "date-asc":
-      return copy.sort((a, b) => a.decision_date.localeCompare(b.decision_date));
-    case "penalty-desc":
-      return copy.sort((a, b) => parsePenaltyAmount(b.penalty) - parsePenaltyAmount(a.penalty));
-    case "name-asc":
-      return copy.sort((a, b) => a.operating_name.localeCompare(b.operating_name));
-    case "date-desc":
-    default:
-      return copy.sort((a, b) => b.decision_date.localeCompare(a.decision_date));
-  }
-}
-
-function renderCard(e) {
   const node = els.template.content.cloneNode(true);
-  node.querySelector(".card-name").textContent = e.operating_name;
+  node.querySelector(".card-name").textContent = operatingName;
 
   const legalEl = node.querySelector(".card-legal");
-  if (e.legal_name && e.legal_name !== e.operating_name) {
-    legalEl.textContent = `Legal name: ${e.legal_name}`;
+  if (legalName && legalName !== operatingName) {
+    legalEl.textContent = `Legal name: ${legalName}`;
   } else {
     legalEl.remove();
   }
 
-  node.querySelector(".card-address").textContent = e.address;
+  node.querySelector(".card-address").textContent = address;
 
   const reasonsEl = node.querySelector(".card-reasons");
-  for (const reason of e.reasons) {
+  for (const reason of reasonsText.split("; ").filter(Boolean)) {
     const li = document.createElement("li");
     li.textContent = reason;
     reasonsEl.appendChild(li);
   }
 
-  node.querySelector(".card-date").textContent = `Decision: ${e.decision_date}`;
-  node.querySelector(".card-penalty").textContent = `Penalty: ${e.penalty}`;
+  node.querySelector(".card-date").textContent = `Decision: ${decisionDate}`;
+  node.querySelector(".card-penalty").textContent = `Penalty: ${penalty}`;
 
   const statusEl = node.querySelector(".card-status");
-  statusEl.textContent = e.status;
-  if (e.status.startsWith("Ineligible")) {
+  statusEl.textContent = status;
+  if (status.startsWith("Ineligible")) {
     statusEl.classList.add("status-ineligible");
   }
 
@@ -126,5 +160,6 @@ function renderCard(e) {
 }
 
 init().catch((err) => {
-  els.results.innerHTML = `<p>Could not load data: ${err.message}</p>`;
+  els.loadStatus.textContent = `Could not load database: ${err.message}`;
+  console.error(err);
 });

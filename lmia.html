@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approved LMIA Employers - TFW Program Violations Tracker</title>
+<meta name="description" content="Searchable database of every employer approved for a positive Labour Market Impact Assessment (LMIA) in Canada since 2014, sourced from Government of Canada open data.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <h1>TFW Program Violations Tracker</h1>
+    <p class="subtitle">
+      Every employer <strong>approved</strong> for a positive Labour Market
+      Impact Assessment (LMIA) since 2014, aggregated from Government of
+      Canada open data.
+    </p>
+    <nav class="site-nav">
+      <a href="index.html">Violations</a>
+      <a href="lmia.html" class="active">LMIA Database</a>
+      <a href="about.html">About &amp; context</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="notice">
+    <p>
+      <strong>What this list is:</strong> every row is an employer that
+      applied for, and was <strong>approved</strong> for, an LMIA. This is
+      the government's full positive-LMIA history (2014&ndash;present).
+      <strong>Approval alone is not evidence of wrongdoing</strong> &mdash;
+      most employers here have no compliance issue at all. Entries flagged
+      <span class="flag-badge">Also found non-compliant</span> additionally
+      appear on the official <a href="index.html">violations list</a>; see
+      <a href="about.html">About &amp; context</a> for what that
+      cross-reference does and doesn't mean, and for data limits (e.g.
+      employers using personal names are excluded from the source data).
+    </p>
+  </section>
+
+  <section class="controls">
+    <input id="search" type="search" placeholder="Search business name or city&hellip;" aria-label="Search">
+    <select id="provinceFilter" aria-label="Filter by province">
+      <option value="">All provinces</option>
+    </select>
+    <select id="flagFilter" aria-label="Filter by compliance flag">
+      <option value="">All employers</option>
+      <option value="1">Also found non-compliant</option>
+    </select>
+    <select id="sort" aria-label="Sort by">
+      <option value="recent">Most recently active</option>
+      <option value="positions">Most approved positions</option>
+      <option value="lmias">Most approved LMIAs</option>
+      <option value="name">Business name (A&ndash;Z)</option>
+    </select>
+  </section>
+
+  <p id="loadStatus" class="result-count">Loading database&hellip;</p>
+  <p id="resultCount" class="result-count"></p>
+
+  <section id="results" class="results"></section>
+
+  <div id="pagination" class="pagination" hidden>
+    <button id="prevPage" type="button">&larr; Previous</button>
+    <span id="pageLabel"></span>
+    <button id="nextPage" type="button">Next &rarr;</button>
+  </div>
+
+  <template id="row-template">
+    <article class="card">
+      <h3 class="card-name"></h3>
+      <p class="card-address"></p>
+      <p class="card-flag flag-badge" hidden>Also found non-compliant &mdash; see the <a href="index.html">violations list</a></p>
+      <div class="card-meta">
+        <span class="card-province"></span>
+        <span class="card-streams"></span>
+        <span class="card-lmias"></span>
+        <span class="card-positions"></span>
+        <span class="card-period"></span>
+      </div>
+    </article>
+  </template>
+
+  <footer class="site-footer">
+    <p>
+      Source: <a href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97" target="_blank" rel="noopener">Government of Canada &ndash; Positive LMIA Employers List (open data)</a>.
+      Reproduced in part under the Open Government Licence &ndash; Canada / Canada.ca non-commercial reuse terms, with attribution.
+      Database snapshot: <span id="fetchedAt"></span>. This site is independently run and is not affiliated with the Government of Canada.
+    </p>
+  </footer>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="js/db.js"></script>
+<script src="js/lmia.js"></script>
+</body>
+</html>

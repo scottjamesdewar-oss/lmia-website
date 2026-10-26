@@ -11,7 +11,8 @@
   <div class="wrap">
     <h1>TFW Program Violations Tracker</h1>
     <nav class="site-nav">
-      <a href="index.html">Database</a>
+      <a href="index.html">Violations</a>
+      <a href="lmia.html">LMIA Database</a>
       <a href="about.html" class="active">About &amp; context</a>
     </nav>
   </div>
@@ -20,45 +21,67 @@
 <main class="wrap prose">
   <h2>What this site is</h2>
   <p>
-    This site republishes the Government of Canada's public list of
-    employers found non-compliant under the Temporary Foreign Worker
-    Program (TFWP) and International Mobility Program (IMP), in a
-    searchable format. Every entry represents a <strong>final compliance
-    decision</strong> made by Employment and Social Development Canada
-    (ESDC) after an inspection &mdash; not an allegation, and not simply a
-    business that applied for a Labour Market Impact Assessment (LMIA).
+    This site has two linked databases, both sourced from Government of
+    Canada open data:
+  </p>
+  <ul>
+    <li>
+      <strong><a href="index.html">Violations</a></strong> &mdash; employers
+      the government's own inspection process has <strong>formally found
+      non-compliant</strong> under the Temporary Foreign Worker Program
+      (TFWP) or International Mobility Program (IMP). Every entry is a
+      final compliance decision, not an allegation.
+    </li>
+    <li>
+      <strong><a href="lmia.html">LMIA Database</a></strong> &mdash; every
+      employer <strong>approved</strong> for a positive Labour Market
+      Impact Assessment since 2014. Appearing here only means an LMIA
+      application was approved &mdash; it is <strong>not</strong> evidence
+      of wrongdoing. Entries that also appear on the Violations list are
+      flagged, so you can see the (currently 771) employers where approval
+      and a later compliance finding both apply to the same business.
+    </li>
+  </ul>
+
+  <h2>What "approved" does and doesn't mean</h2>
+  <p>
+    The LMIA Database only shows <em>positive</em> (approved) decisions.
+    The federal government does not publish a list of pending or refused
+    LMIA applications &mdash; that information isn't public from any
+    source, so there is no "application status" tracker beyond "this
+    employer has, at some point, had at least one LMIA approved." An
+    employer can appear here with a large number of approved positions and
+    have never been found non-compliant; the reverse is also possible.
+    Treat the two databases as separate facts, cross-referenced by name
+    only where both independently exist.
   </p>
 
-  <h2>What this site is not</h2>
+  <h2>Data sources, licensing &amp; architecture</h2>
   <p>
-    A business is not listed here just because it received a positive
-    LMIA. The federal government separately publishes a list of all
-    employers with an <em>approved</em> LMIA
-    (<a href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97" target="_blank" rel="noopener">open data portal</a>),
-    but approval alone is not evidence of wrongdoing, and that list is not
-    reproduced here for that reason. This tracker only includes employers
-    the government has already found, through its own inspection process,
-    to have violated program conditions.
-  </p>
-
-  <h2>Data source &amp; licensing</h2>
-  <p>
-    Data is pulled from the government's own published dataset at
+    Violations data is pulled from
     <a href="https://www.canada.ca/content/dam/ircc/documents/json/non_compliant.json" target="_blank" rel="noopener">canada.ca/.../non_compliant.json</a>,
     which backs the official page
     <a href="https://www.canada.ca/en/immigration-refugees-citizenship/services/work-canada/employers-non-compliant.html" target="_blank" rel="noopener">Employers who have been found non-compliant</a>.
-    It is reproduced here in part under
-    <a href="https://www.canada.ca/en/transparency/terms.html" target="_blank" rel="noopener">Canada.ca's non-commercial reuse terms</a>,
-    with attribution and a link to the original. This site is
-    independently run and has no affiliation with, and is not endorsed by,
-    the Government of Canada.
+    LMIA Database data is aggregated from every quarterly/annual release
+    (2014&ndash;present) of the
+    <a href="https://open.canada.ca/data/en/dataset/90fed587-1364-4f33-a9ee-208181dc0b97" target="_blank" rel="noopener">Positive LMIA Employers List</a>
+    open dataset. Both are reproduced here in part under the
+    <a href="https://www.canada.ca/en/transparency/terms.html" target="_blank" rel="noopener">Canada.ca non-commercial reuse terms</a>
+    / Open Government Licence &ndash; Canada, with attribution and a link to
+    the original. This site is independently run and has no affiliation
+    with, and is not endorsed by, the Government of Canada.
   </p>
   <p>
-    The underlying government list is updated on an ongoing basis as new
-    compliance decisions are finalized &mdash; it is not a fixed quarterly
-    release. This site's snapshot is refreshed periodically by re-running an
-    import script; see the timestamp on the database page for the last
-    update.
+    Because the LMIA dataset alone covers roughly 400,000 historical
+    records, the site ships it as a single indexed SQLite database
+    (<code>data/site.sqlite</code>) that your browser downloads once and
+    queries directly using <a href="https://sql.js.org/" target="_blank" rel="noopener">sql.js</a>
+    (SQLite compiled to WebAssembly) &mdash; rather than as a giant JSON
+    file, which would be too large to load or search efficiently. The
+    violations list is small enough to stay in the same database. Both
+    datasets are updated by re-running the import scripts in this project's
+    <a href="https://github.com/scottjamesdewar-oss/lmia-website" target="_blank" rel="noopener">GitHub repository</a>; see the timestamp on each
+    database page for the last snapshot.
   </p>
 
   <h2>Why this exists</h2>

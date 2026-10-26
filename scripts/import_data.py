@@ -83,10 +83,10 @@ def fetch_non_compliant_raw() -> list[dict]:
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "30", NON_COMPLIANT_URL],
-            capture_output=True, text=True, timeout=40, check=True,
+            capture_output=True, timeout=40, check=True,
         )
         if result.stdout.strip():
-            text = result.stdout
+            text = result.stdout.decode("utf-8")
     except Exception:
         text = None
 

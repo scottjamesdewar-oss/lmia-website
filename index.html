@@ -17,7 +17,8 @@
       Foreign Worker Program (TFWP) or International Mobility Program (IMP).
     </p>
     <nav class="site-nav">
-      <a href="index.html" class="active">Database</a>
+      <a href="index.html" class="active">Violations</a>
+      <a href="lmia.html">LMIA Database</a>
       <a href="about.html">About &amp; context</a>
     </nav>
   </div>
@@ -32,8 +33,10 @@
       conditions of hiring a temporary foreign worker. It does <strong>not</strong>
       include employers who simply applied for or received a Labour Market
       Impact Assessment (LMIA); being approved for an LMIA is not evidence of
-      wrongdoing on its own. See <a href="about.html">About &amp; context</a>
-      for sourcing, licensing, and the limits of this data.
+      wrongdoing on its own. For the full list of LMIA-approved employers,
+      see the <a href="lmia.html">LMIA Database</a>. For sourcing,
+      licensing, and the limits of this data, see
+      <a href="about.html">About &amp; context</a>.
     </p>
   </section>
 
@@ -55,6 +58,7 @@
     </select>
   </section>
 
+  <p id="loadStatus" class="result-count">Loading database&hellip;</p>
   <p id="resultCount" class="result-count"></p>
 
   <section id="results" class="results"></section>
@@ -82,6 +86,8 @@
   </footer>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script src="js/db.js"></script>
 <script src="js/app.js"></script>
 </body>
 </html>
