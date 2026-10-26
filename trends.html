@@ -49,10 +49,11 @@
         more useful view), color-coded by the 8 occupations with the most
         approved positions overall, with everything else grouped into
         "Other" (still roughly 40% of the total &mdash; the occupation
-        list is long-tailed across 569 distinct titles). <strong>Click a
-        year's "Other" segment</strong> to download a CSV of every
-        occupation in it for that year. The government's
-        2014&ndash;2015 releases didn't list
+        list is long-tailed across 569 distinct titles). <strong>Click
+        any segment of a bar</strong> to drill in: an "Other" segment
+        opens the list of occupations it contains; any other segment
+        goes straight to the list of employers, by postal code. The
+        government's 2014&ndash;2015 releases didn't list
         occupations at all, so those two years aren't shown here (they're
         still in the LMIA Database). 2026 includes only Q1 so far
         &mdash; don't read it as a drop from 2025.
@@ -68,9 +69,10 @@
         Color-coded by the 8 occupations with the most approved LMIAs
         overall, with every other occupation grouped into "Other" (still
         the majority here &mdash; LMIA counts are spread across more
-        occupations than positions are). <strong>Click a year's "Other"
-        segment</strong> to download a CSV of every occupation in it for
-        that year. The government's
+        occupations than positions are). <strong>Click any segment</strong>
+        to drill in &mdash; "Other" opens the occupation list, any other
+        segment goes straight to the employer list by postal code. The
+        government's
         2014&ndash;2015 releases didn't list occupations at
         all, so those two years aren't shown. 2026 includes only Q1.
       </p>
@@ -118,6 +120,22 @@
       <div class="chart-wrap"><canvas id="provinceChart"></canvas></div>
     </article>
   </section>
+
+  <div id="drillOverlay" class="drill-overlay" hidden>
+    <div class="drill-panel">
+      <div class="drill-header">
+        <nav id="drillBreadcrumb" class="drill-breadcrumb"></nav>
+        <button id="drillClose" type="button" class="drill-close" aria-label="Close">&times;</button>
+      </div>
+      <p id="drillStatus" class="result-count"></p>
+      <div id="drillList" class="drill-list"></div>
+      <div id="drillPagination" class="pagination" hidden>
+        <button id="drillPrev" type="button">&larr; Previous</button>
+        <span id="drillPageLabel"></span>
+        <button id="drillNext" type="button">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
 
   <footer class="site-footer">
     <p>

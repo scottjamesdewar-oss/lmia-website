@@ -137,6 +137,26 @@ CREATE TABLE trend_franchise (
     total_approved_positions INTEGER
 );
 
+-- Drill-down support: occupations dictionary (small, reused by id to
+-- avoid repeating title text across ~370k rows) and the per
+-- employer/occupation/year detail that backs the Trends chart
+-- drill-downs (Other -> occupation -> employer list by postal code).
+DROP TABLE IF EXISTS occupations;
+CREATE TABLE occupations (
+    id INTEGER PRIMARY KEY,
+    title TEXT UNIQUE NOT NULL
+);
+
+DROP TABLE IF EXISTS employer_occupation_year;
+CREATE TABLE employer_occupation_year (
+    id INTEGER PRIMARY KEY,
+    employer_id INTEGER NOT NULL,
+    occupation_id INTEGER NOT NULL,
+    year TEXT NOT NULL,
+    total_approved_lmias INTEGER,
+    total_approved_positions INTEGER
+);
+
 DROP TABLE IF EXISTS non_compliant;
 CREATE TABLE non_compliant (
     id INTEGER PRIMARY KEY,
@@ -269,7 +289,12 @@ def build_lmia_employers(
     detail_rows: list[dict],
     noncompliant_keys: set[str],
     fsa_centroids: dict[str, tuple[float, float, str]],
-) -> None:
+) -> dict[tuple[str, str], int]:
+    """Returns {(employer_key, address_key): lmia_employers.id} - the ids
+    are SQLite's auto-assigned rowids, which for a fresh INTEGER PRIMARY
+    KEY table filled via a single ordered executemany are exactly
+    1..N in insertion order, so we can compute them here without a
+    round-trip query."""
     aggregated: dict[tuple[str, str], dict] = {}
     for rec in detail_rows:
         employer = rec.get("employer", "")
@@ -339,6 +364,70 @@ def build_lmia_employers(
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         employer_insert,
     )
+
+    return {key: i + 1 for i, key in enumerate(aggregated.keys())}
+
+
+def build_employer_occupation_year(
+    conn: sqlite3.Connection,
+    detail_rows: list[dict],
+    employer_id_by_key: dict[tuple[str, str], int],
+) -> None:
+    """Backs the Trends page drill-downs: click a year's "Other" segment
+    to see the occupations in it, click an occupation (whether from
+    "Other" or one of the top-N bars directly) to see the employers
+    behind it for that year, by postal code."""
+    occupation_ids: dict[str, int] = {}
+
+    def occupation_id_for(title: str) -> int:
+        oid = occupation_ids.get(title)
+        if oid is None:
+            oid = len(occupation_ids) + 1
+            occupation_ids[title] = oid
+        return oid
+
+    aggregated: dict[tuple[int, int, str], dict] = defaultdict(
+        lambda: {"lmias": 0, "positions": 0}
+    )
+    skipped = 0
+    for rec in detail_rows:
+        key = (lmia_mod.normalize_key(rec.get("employer", "")), lmia_mod.normalize_key(rec.get("address", "")))
+        employer_id = employer_id_by_key.get(key)
+        occupation = rec.get("occupation", "").strip()
+        if employer_id is None or not occupation:
+            skipped += 1
+            continue
+        title = cleanOccupationTitle_py(occupation)
+        oid = occupation_id_for(title)
+        year = rec["period"][:4]
+        bucket = aggregated[(employer_id, oid, year)]
+        bucket["lmias"] += lmia_mod.parse_int(rec.get("approved_lmias")) or 1
+        bucket["positions"] += lmia_mod.parse_int(rec.get("approved_positions"))
+
+    print(f"  {skipped} detail rows skipped (no occupation or unmatched employer)")
+
+    print(f"Inserting {len(occupation_ids)} occupation dictionary rows...")
+    conn.executemany(
+        "INSERT INTO occupations (id, title) VALUES (?, ?)",
+        [(oid, title) for title, oid in occupation_ids.items()],
+    )
+
+    rows = [
+        (employer_id, oid, year, b["lmias"], b["positions"])
+        for (employer_id, oid, year), b in aggregated.items()
+    ]
+    print(f"Inserting {len(rows)} employer_occupation_year rows...")
+    conn.executemany(
+        """INSERT INTO employer_occupation_year
+           (employer_id, occupation_id, year, total_approved_lmias, total_approved_positions)
+           VALUES (?,?,?,?,?)""",
+        rows,
+    )
+
+
+def cleanOccupationTitle_py(occupation: str) -> str:
+    i = occupation.find("-")
+    return occupation[i + 1 :] if i > 0 else occupation
 
 
 def build_map_points(
@@ -595,6 +684,9 @@ def build_indexes(conn: sqlite3.Connection) -> None:
         CREATE INDEX idx_trend_province_period ON trend_province(period);
         CREATE INDEX idx_trend_occupation_period ON trend_occupation(period);
         CREATE INDEX idx_trend_franchise_period ON trend_franchise(period);
+
+        CREATE INDEX idx_eoy_occupation_year ON employer_occupation_year(occupation_id, year);
+        CREATE INDEX idx_eoy_employer ON employer_occupation_year(employer_id);
         """
     )
 
@@ -612,9 +704,10 @@ def main() -> None:
     fsa_centroids = load_fsa_centroids()
     noncompliant_keys = build_non_compliant(conn)
     detail_rows = fetch_lmia_detail_rows()
-    build_lmia_employers(conn, detail_rows, noncompliant_keys, fsa_centroids)
+    employer_id_by_key = build_lmia_employers(conn, detail_rows, noncompliant_keys, fsa_centroids)
     build_map_points(conn, detail_rows, fsa_centroids)
     build_trends(conn, detail_rows)
+    build_employer_occupation_year(conn, detail_rows, employer_id_by_key)
     conn.commit()
 
     build_indexes(conn)

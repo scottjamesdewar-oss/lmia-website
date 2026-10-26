@@ -6,7 +6,18 @@ const PALETTE = [
 const els = {
   loadStatus: document.getElementById("loadStatus"),
   chartsRoot: document.getElementById("chartsRoot"),
+  drillOverlay: document.getElementById("drillOverlay"),
+  drillBreadcrumb: document.getElementById("drillBreadcrumb"),
+  drillStatus: document.getElementById("drillStatus"),
+  drillList: document.getElementById("drillList"),
+  drillClose: document.getElementById("drillClose"),
+  drillPagination: document.getElementById("drillPagination"),
+  drillPrev: document.getElementById("drillPrev"),
+  drillNext: document.getElementById("drillNext"),
+  drillPageLabel: document.getElementById("drillPageLabel"),
 };
+
+const DRILL_PAGE_SIZE = 50;
 
 function isDark() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -60,11 +71,159 @@ function cleanOccupationTitle(occupation) {
   return i > 0 ? occupation.slice(i + 1) : occupation;
 }
 
+// --- Drill-down overlay: Year -> ("Other" ->) Occupation -> Employers ---
+
+const drillState = { path: [] };
+
+function startDrillDown(rootPath, nextLabel, nextRender) {
+  drillState.path = [...rootPath, { label: nextLabel, render: nextRender }];
+  els.drillOverlay.hidden = false;
+  renderBreadcrumb();
+  nextRender();
+}
+
+function pushDrillLevel(label, render) {
+  drillState.path.push({ label, render });
+  renderBreadcrumb();
+  render();
+}
+
+function popToDrillLevel(index) {
+  drillState.path = drillState.path.slice(0, index + 1);
+  renderBreadcrumb();
+  const entry = drillState.path[index];
+  if (entry.render) entry.render();
+}
+
+function closeDrillDown() {
+  els.drillOverlay.hidden = true;
+  drillState.path = [];
+  els.drillList.innerHTML = "";
+  els.drillPagination.hidden = true;
+}
+
+function renderBreadcrumb() {
+  els.drillBreadcrumb.innerHTML = "";
+  drillState.path.forEach((entry, i) => {
+    if (i > 0) {
+      const sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = "›";
+      els.drillBreadcrumb.appendChild(sep);
+    }
+    const isLast = i === drillState.path.length - 1;
+    if (isLast || !entry.render) {
+      const span = document.createElement("span");
+      span.textContent = entry.label;
+      els.drillBreadcrumb.appendChild(span);
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = entry.label;
+      btn.addEventListener("click", () => popToDrillLevel(i));
+      els.drillBreadcrumb.appendChild(btn);
+    }
+  });
+}
+
+function renderOccupationsLevel({ db, valueColumn, valueLabel, year, byYear, topSet }) {
+  els.drillPagination.hidden = true;
+  const yearMap = byYear.get(year);
+  const rows = [...yearMap.entries()]
+    .filter(([title]) => !topSet.has(title))
+    .sort((a, b) => b[1] - a[1]);
+
+  els.drillStatus.textContent = `${rows.length.toLocaleString()} occupations in "Other" for ${year}`;
+  els.drillList.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const [title, value] of rows) {
+    const row = document.createElement("div");
+    row.className = "drill-row";
+    row.innerHTML = `
+      <div class="drill-row-main"><div class="drill-row-name"></div></div>
+      <div class="drill-row-value"></div>`;
+    row.querySelector(".drill-row-name").textContent = title;
+    row.querySelector(".drill-row-value").textContent = `${value.toLocaleString()} ${valueLabel}`;
+    row.addEventListener("click", () => {
+      pushDrillLevel(title, () =>
+        renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation: title, page: 0 })
+      );
+    });
+    frag.appendChild(row);
+  }
+  els.drillList.appendChild(frag);
+}
+
+function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page }) {
+  const countRes = db.exec(
+    `SELECT COUNT(*) FROM employer_occupation_year eoy
+     JOIN occupations o ON o.id = eoy.occupation_id
+     WHERE o.title = ? AND eoy.year = ?`,
+    [occupation, year]
+  );
+  const total = countRes.length ? countRes[0].values[0][0] : 0;
+
+  const dataRes = db.exec(
+    `SELECT e.employer, e.address, e.fsa, e.is_noncompliant, eoy.${valueColumn}
+     FROM employer_occupation_year eoy
+     JOIN occupations o ON o.id = eoy.occupation_id
+     JOIN lmia_employers e ON e.id = eoy.employer_id
+     WHERE o.title = ? AND eoy.year = ?
+     ORDER BY e.fsa ASC, eoy.${valueColumn} DESC
+     LIMIT ? OFFSET ?`,
+    [occupation, year, DRILL_PAGE_SIZE, page * DRILL_PAGE_SIZE]
+  );
+  const rows = dataRes.length ? dataRes[0].values : [];
+
+  els.drillStatus.textContent = `${total.toLocaleString()} employers — ${occupation}, ${year}, sorted by postal code`;
+  els.drillList.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  for (const [employer, address, fsa, isNc, value] of rows) {
+    const row = document.createElement("div");
+    row.className = "drill-row static";
+    row.innerHTML = `
+      <div class="drill-row-main">
+        <div class="drill-row-name"></div>
+        <div class="drill-row-sub"></div>
+      </div>
+      <div class="drill-row-value"></div>`;
+    const nameEl = row.querySelector(".drill-row-name");
+    nameEl.textContent = employer;
+    if (isNc) {
+      const flag = document.createElement("span");
+      flag.style.color = "#ef4444";
+      flag.textContent = " ⚠";
+      flag.title = "Also found non-compliant";
+      nameEl.appendChild(flag);
+    }
+    row.querySelector(".drill-row-sub").textContent = `${address}${fsa ? ` (${fsa})` : ""}`;
+    row.querySelector(".drill-row-value").textContent = `${value.toLocaleString()} ${valueLabel}`;
+    frag.appendChild(row);
+  }
+  els.drillList.appendChild(frag);
+
+  const totalPages = Math.max(1, Math.ceil(total / DRILL_PAGE_SIZE));
+  els.drillPagination.hidden = total <= DRILL_PAGE_SIZE;
+  els.drillPageLabel.textContent = `Page ${page + 1} of ${totalPages.toLocaleString()}`;
+  els.drillPrev.disabled = page === 0;
+  els.drillPrev.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page - 1 });
+  els.drillNext.disabled = (page + 1) * DRILL_PAGE_SIZE >= total;
+  els.drillNext.onclick = () => renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, page: page + 1 });
+}
+
+els.drillClose.addEventListener("click", closeDrillDown);
+els.drillOverlay.addEventListener("click", (evt) => {
+  if (evt.target === els.drillOverlay) closeDrillDown();
+});
+document.addEventListener("keydown", (evt) => {
+  if (evt.key === "Escape" && !els.drillOverlay.hidden) closeDrillDown();
+});
+
 // Shared by both yearly occupation-stacked charts: fetches
 // (year, occupation, value) from trend_occupation, cleans NOC titles,
 // ranks the top N by all-time total, and builds a stacked-bar Chart.js
 // config with everything outside the top N folded into "Other".
-function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, topN = 4 }) {
+function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, valueLabel, topN = 4 }) {
   const res = db.exec(
     `SELECT SUBSTR(period, 1, 4) AS year, occupation, SUM(${valueColumn}) AS v
      FROM trend_occupation GROUP BY year, occupation`
@@ -114,48 +273,38 @@ function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, topN = 4 }) {
         y: { stacked: true, ticks: { color: "#9aa1ad" } },
       },
       onHover: (evt, elements, chart) => {
-        const el = elements[0];
-        const isOther = el && chart.data.datasets[el.datasetIndex].label === "Other";
-        evt.native.target.style.cursor = isOther ? "pointer" : "default";
+        evt.native.target.style.cursor = elements[0] ? "pointer" : "default";
       },
       onClick: (evt, elements, chart) => {
         const el = elements[0];
         if (!el) return;
-        if (chart.data.datasets[el.datasetIndex].label !== "Other") return;
+        const label = chart.data.datasets[el.datasetIndex].label;
         const year = years[el.index];
-        downloadOtherOccupationsCsv(year, byYear.get(year), topSet, valueColumn);
+        const ctx = { db, valueColumn, valueLabel, year };
+        if (label === "Other") {
+          startDrillDown(
+            [{ label: year, render: null }],
+            "Other",
+            () => renderOccupationsLevel({ ...ctx, byYear, topSet })
+          );
+        } else {
+          startDrillDown(
+            [{ label: year, render: null }],
+            label,
+            () => renderBusinessesLevel({ ...ctx, occupation: label, page: 0 })
+          );
+        }
       },
     }),
   });
 }
 
-function downloadOtherOccupationsCsv(year, yearMap, topSet, valueColumn) {
-  const rows = [...yearMap.entries()]
-    .filter(([title]) => !topSet.has(title))
-    .sort((a, b) => b[1] - a[1]);
-
-  let csv = `occupation,${valueColumn}\n`;
-  for (const [title, value] of rows) {
-    csv += `"${title.replace(/"/g, '""')}",${value}\n`;
-  }
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `other-occupations-${year}-${valueColumn}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
 function drawVolumeChart(db) {
-  drawYearlyTopOccupationChart(db, { canvasId: "volumeChart", valueColumn: "total_approved_positions", topN: 8 });
+  drawYearlyTopOccupationChart(db, { canvasId: "volumeChart", valueColumn: "total_approved_positions", valueLabel: "positions", topN: 8 });
 }
 
 function drawLmiaCountByOccupationChart(db) {
-  drawYearlyTopOccupationChart(db, { canvasId: "lmiaCountChart", valueColumn: "total_approved_lmias", topN: 8 });
+  drawYearlyTopOccupationChart(db, { canvasId: "lmiaCountChart", valueColumn: "total_approved_lmias", valueLabel: "approved LMIAs", topN: 8 });
 }
 
 function drawFranchiseChart(db) {
