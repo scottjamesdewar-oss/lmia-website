@@ -39,6 +39,34 @@ FRANCHISE_RE = re.compile(
 FRANCHISE_SUBSTRING_MIN_COUNT = 5
 FRANCHISE_SUBSTRING_MAX_BRANDS = 150
 
+# Generic qualifier words franchise naming sometimes tacks on (e.g.
+# "Subway Restaurant", "A & W Restaurant", "Subway Sandwiches and Salads")
+# that would otherwise split one brand into several buckets. Longest
+# first so a multi-word suffix is stripped whole rather than partially.
+FRANCHISE_GENERIC_SUFFIXES = [
+    "SANDWICHES AND SALADS",
+    "RESTAURANTS",
+    "RESTAURANT",
+    "SANDWICHES",
+]
+
+
+def canonical_brand_key(brand: str) -> str:
+    """Collapses cosmetic variants of the same brand ("A & W Restaurant",
+    "A&W Restaurant", "A & W") to one grouping key, without merging
+    actually-different brands (e.g. never strips "Pizza" - that's core to
+    "Boston Pizza" / "Pizza Hut" / "Little Caesars Pizza")."""
+    s = brand.upper()
+    s = s.replace("’", "'")
+    s = re.sub(r"[.',]", "", s)
+    s = re.sub(r"\s*&\s*", "&", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    for suffix in FRANCHISE_GENERIC_SUFFIXES:
+        if s.endswith(" " + suffix):
+            s = s[: -(len(suffix) + 1)].strip()
+            break
+    return s
+
 
 SCHEMA = """
 DROP TABLE IF EXISTS lmia_employers;
@@ -408,6 +436,25 @@ def build_franchise_assignments(detail_rows: list[dict]) -> list[str]:
             assigned[i] = m.group(0).upper()
             fallback_hits += 1
     print(f"  substring fallback matched {fallback_hits} additional records")
+
+    # Pass 1's "everything after the marker" capture also grabs trailing
+    # store/location qualifiers ("o/a Tim Hortons Okotoks" -> "TIM HORTONS
+    # OKOTOKS"), fragmenting an otherwise well-evidenced brand into dozens
+    # of one-off variants. Where the assigned text starts with a known
+    # brand followed by more text, truncate it back to just the brand.
+    known_brands_by_len = sorted(known_brands, key=len, reverse=True)
+    truncated = 0
+    for i, brand in enumerate(assigned):
+        if not brand:
+            continue
+        for kb in known_brands_by_len:
+            if brand == kb:
+                break
+            if brand.startswith(kb) and not brand[len(kb)].isalnum():
+                assigned[i] = kb
+                truncated += 1
+                break
+    print(f"  truncated {truncated} brand+location strings to their known brand prefix")
     return assigned
 
 
@@ -487,13 +534,43 @@ def build_trends(conn: sqlite3.Connection, detail_rows: list[dict]) -> None:
         ],
     )
 
-    print(f"Inserting {len(franchise_buckets)} trend_franchise rows...")
+    # Merge cosmetic spelling variants of the same brand ("A & W
+    # Restaurant" / "A&W Restaurant" / "A&W") into one canonical bucket,
+    # keeping whichever raw spelling has the most total positions as the
+    # display label.
+    canon_groups: dict[str, dict] = defaultdict(
+        lambda: {"labels": defaultdict(int), "periods": defaultdict(
+            lambda: {"employers": set(), "lmias": 0, "positions": 0}
+        )}
+    )
+    for (period, raw_brand), b in franchise_buckets.items():
+        canon = canonical_brand_key(raw_brand)
+        group = canon_groups[canon]
+        group["labels"][raw_brand] += b["positions"]
+        pb = group["periods"][period]
+        pb["employers"] |= b["employers"]
+        pb["lmias"] += b["lmias"]
+        pb["positions"] += b["positions"]
+
+    def has_generic_suffix(label: str) -> bool:
+        upper = label.upper()
+        return any(upper.endswith(" " + suf) for suf in FRANCHISE_GENERIC_SUFFIXES)
+
+    merged_rows = []
+    for group in canon_groups.values():
+        # Prefer a suffix-free spelling ("A&W" over "A&W Restaurant") when
+        # one has reasonable support, falling back to the top overall
+        # variant otherwise.
+        clean = {k: v for k, v in group["labels"].items() if not has_generic_suffix(k)}
+        pool = clean if clean else group["labels"]
+        display = max(pool.items(), key=lambda kv: kv[1])[0]
+        for period, pb in group["periods"].items():
+            merged_rows.append((period, display, len(pb["employers"]), pb["lmias"], pb["positions"]))
+
+    print(f"Inserting {len(merged_rows)} trend_franchise rows ({len(canon_groups)} canonical brands)...")
     conn.executemany(
         "INSERT INTO trend_franchise (period, brand, employer_count, total_approved_lmias, total_approved_positions) VALUES (?,?,?,?,?)",
-        [
-            (period, brand, len(b["employers"]), b["lmias"], b["positions"])
-            for (period, brand), b in franchise_buckets.items()
-        ],
+        merged_rows,
     )
 
 
