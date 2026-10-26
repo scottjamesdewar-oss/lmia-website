@@ -107,7 +107,7 @@ main.wrap {
 
 .controls {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr;
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -124,6 +124,37 @@ main.wrap {
   border-radius: var(--radius);
   padding: 10px 12px;
   font-size: 0.95rem;
+}
+
+.glossary {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+
+.glossary summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+  padding: 4px 0;
+}
+
+.glossary dl {
+  margin: 10px 0 4px;
+}
+
+.glossary dt {
+  color: var(--text);
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.glossary dd {
+  color: var(--text-dim);
+  margin: 2px 0 0;
 }
 
 .result-count {
