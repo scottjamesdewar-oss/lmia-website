@@ -106,12 +106,13 @@ function drawLmiaCountByOccupationChart(db) {
     yearMap.set(title, (yearMap.get(title) || 0) + lmias);
   }
 
-  const top3 = [...titleTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t]) => t);
-  const top3Set = new Set(top3);
+  const TOP_N = 4;
+  const topN = [...titleTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_N).map(([t]) => t);
+  const topNSet = new Set(topN);
   const years = [...byYear.keys()].sort();
 
-  const series = [...top3, "Other"];
-  const colors = [PALETTE[0], PALETTE[1], PALETTE[2], "#7f7f7f"];
+  const series = [...topN, "Other"];
+  const colors = [...PALETTE.slice(0, TOP_N), "#7f7f7f"];
 
   const datasets = series.map((title, i) => ({
     label: title,
@@ -122,7 +123,7 @@ function drawLmiaCountByOccupationChart(db) {
       if (title === "Other") {
         let total = 0;
         for (const [t, v] of yearMap.entries()) {
-          if (!top3Set.has(t)) total += v;
+          if (!topNSet.has(t)) total += v;
         }
         return total;
       }
