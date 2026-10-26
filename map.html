@@ -6,6 +6,8 @@
 <title>Map - TFW Program Violations Tracker</title>
 <meta name="description" content="Map of approved LMIA activity across Canada by quarter, sized by approved positions, aggregated by postal-code area.">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -13,9 +15,9 @@
   <div class="wrap">
     <h1>TFW Program Violations Tracker</h1>
     <p class="subtitle">
-      Approved LMIA activity by location and quarter. Circle size =
-      total approved positions in that postal-code area for the selected
-      quarter.
+      Approved LMIA activity by location and quarter. Each pin is one
+      postal-code area; pins cluster together when zoomed out, and split
+      apart as you zoom in.
     </p>
     <nav class="site-nav">
       <a href="index.html">Violations</a>
@@ -30,23 +32,22 @@
 <main class="wrap">
   <section class="notice">
     <p>
-      <strong>What this shows:</strong> circles are grouped by postal
-      code area (the first 3 characters, e.g. "T4R"), not exact addresses
+      <strong>What this shows:</strong> each pin represents a postal code
+      area (the first 3 characters, e.g. "T4R"), not an exact address
       &mdash; Canada's full postal-code-to-location data isn't public for
       free reuse, so this is neighbourhood-level, not building-level, and
-      unrelated businesses in the same area appear under the same circle.
-      Zoomed out, circles are grouped by province instead, since
-      postal-code areas are dense enough to overlap and hide each other at
-      that scale &mdash; zoom in to see individual postal-code circles.
-      Click a circle to see the individual employers behind it. A location
-      having approved LMIAs is <strong>not evidence of wrongdoing</strong>.
+      unrelated businesses in the same area share a pin. When pins are
+      close together they group into a numbered cluster; click a cluster
+      to zoom in, or click an individual pin to see the employers behind
+      it. A location having approved LMIAs is
+      <strong>not evidence of wrongdoing</strong>.
     </p>
   </section>
 
   <div class="map-controls" id="quarterControls"></div>
   <p id="loadStatus" class="result-count">Loading database&hellip;</p>
   <div id="mapWrap"></div>
-  <p id="mapLegend" class="map-legend">Circle area is proportional to total approved positions for the selected quarter(s), grouped by postal-code area (FSA). Click a circle for details.</p>
+  <p id="mapLegend" class="map-legend">Each pin is a postal-code area (FSA). Nearby pins cluster together at lower zoom levels &mdash; click a cluster to zoom in, or a pin for details.</p>
 
   <footer class="site-footer">
     <p>
@@ -60,6 +61,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
 <script src="js/db.js"></script>
 <script src="js/map.js"></script>
 </body>

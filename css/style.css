@@ -258,6 +258,42 @@ main.wrap {
   border: 1px solid var(--border);
 }
 
+.lmia-pin-dot {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
+.lmia-cluster div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.lmia-cluster-small div {
+  background: rgba(228, 87, 46, 0.75);
+}
+
+.lmia-cluster-medium div {
+  background: rgba(200, 68, 31, 0.85);
+}
+
+.lmia-cluster-large div {
+  background: rgba(150, 40, 15, 0.92);
+}
+
 .map-controls {
   display: flex;
   flex-wrap: wrap;

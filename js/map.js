@@ -1,36 +1,25 @@
-const ZOOM_SWITCH = 6; // below this: province circles. at/above: FSA circles.
-
-const PROVINCE_CENTROIDS = {
-  "Alberta": [53.9333, -116.5765],
-  "British Columbia": [53.7267, -127.6476],
-  "Manitoba": [53.7609, -98.8139],
-  "New Brunswick": [46.5653, -66.4619],
-  "Newfoundland and Labrador": [53.1355, -57.6604],
-  "Nova Scotia": [44.682, -63.7443],
-  "Ontario": [51.2538, -85.3232],
-  "Prince Edward Island": [46.5107, -63.4168],
-  "Quebec": [52.9399, -73.5491],
-  "Saskatchewan": [52.9399, -106.4509],
-  "Northwest Territories": [64.8255, -124.8457],
-  "Nunavut": [70.2998, -83.1076],
-  "Yukon": [64.2823, -135.0],
-};
-
 const state = {
   db: null,
   map: null,
-  layer: null,
+  clusterGroup: null,
   selectedPeriods: new Set(),
   allPeriods: [],
-  redrawTimer: null,
 };
 
 const els = {
   quarterControls: document.getElementById("quarterControls"),
   loadStatus: document.getElementById("loadStatus"),
   mapWrap: document.getElementById("mapWrap"),
-  mapLegend: document.getElementById("mapLegend"),
 };
+
+function pinIcon() {
+  return L.divIcon({
+    className: "lmia-pin",
+    html: '<span class="lmia-pin-dot"></span>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+}
 
 async function init() {
   const db = await loadDatabase((received, total) => {
@@ -54,14 +43,28 @@ async function init() {
     maxZoom: 15,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(state.map);
-  state.layer = L.layerGroup().addTo(state.map);
 
-  state.map.on("zoomend moveend", () => {
-    clearTimeout(state.redrawTimer);
-    state.redrawTimer = setTimeout(drawCircles, 150);
+  state.clusterGroup = L.markerClusterGroup({
+    maxClusterRadius: 50,
+    spiderfyOnMaxZoom: true,
+    iconCreateFunction: clusterIcon,
   });
+  state.map.addLayer(state.clusterGroup);
 
-  drawCircles();
+  drawPins();
+}
+
+function clusterIcon(cluster) {
+  const markers = cluster.getAllChildMarkers();
+  const total = markers.reduce((sum, m) => sum + (m.options.positions || 0), 0);
+  let size = "small";
+  if (total > 5000) size = "large";
+  else if (total > 500) size = "medium";
+  return L.divIcon({
+    html: `<div><span>${total.toLocaleString()}</span></div>`,
+    className: `lmia-cluster lmia-cluster-${size}`,
+    iconSize: [44, 44],
+  });
 }
 
 function buildQuarterControls() {
@@ -74,7 +77,7 @@ function buildQuarterControls() {
   allBtn.addEventListener("click", () => {
     state.selectedPeriods = new Set(state.allPeriods);
     syncButtonStates();
-    drawCircles();
+    drawPins();
   });
   els.quarterControls.appendChild(allBtn);
 
@@ -91,7 +94,7 @@ function buildQuarterControls() {
         state.selectedPeriods.add(period);
       }
       syncButtonStates();
-      drawCircles();
+      drawPins();
     });
     els.quarterControls.appendChild(btn);
   }
@@ -106,120 +109,29 @@ function syncButtonStates() {
   allBtn.classList.toggle("active", state.selectedPeriods.size === state.allPeriods.length);
 }
 
-function radiusForPositions(positions, maxR) {
-  const minR = 4;
-  const scaled = Math.sqrt(positions) * 2.2;
-  return Math.max(minR, Math.min(maxR, scaled));
-}
+function drawPins() {
+  state.clusterGroup.clearLayers();
+  if (state.selectedPeriods.size === 0) return;
 
-function drawCircles() {
-  state.layer.clearLayers();
-  if (state.selectedPeriods.size === 0 || !state.map) return;
-
-  const zoom = state.map.getZoom();
-  if (zoom < ZOOM_SWITCH) {
-    drawProvinceCircles();
-    if (els.mapLegend) {
-      els.mapLegend.textContent =
-        "Zoomed out: circles are grouped by province to avoid overlapping postal-code areas. Zoom in to see individual postal-code areas.";
-    }
-  } else {
-    drawFsaCircles();
-    if (els.mapLegend) {
-      els.mapLegend.textContent =
-        "Circle area is proportional to total approved positions for the selected quarter(s), grouped by postal-code area (FSA). Click a circle for details.";
-    }
-  }
-}
-
-function drawProvinceCircles() {
-  const placeholders = [...state.selectedPeriods].map(() => "?").join(",");
-  const sql = `
-    SELECT province, SUM(total_approved_positions) p, SUM(total_approved_lmias) l
-    FROM lmia_map_points
-    WHERE period IN (${placeholders})
-    GROUP BY province
-    HAVING p > 0
-    ORDER BY p DESC`;
-  const res = state.db.exec(sql, [...state.selectedPeriods]);
-  const rows = res.length ? res[0].values : [];
-
-  for (const [province, positions, lmias] of rows) {
-    const centroid = PROVINCE_CENTROIDS[province];
-    if (!centroid) continue;
-    const circle = L.circleMarker(centroid, {
-      radius: radiusForPositions(positions, 70),
-      color: "#e4572e",
-      weight: 1,
-      fillColor: "#e4572e",
-      fillOpacity: 0.45,
-    });
-    circle.bindTooltip(`${province} — ${positions.toLocaleString()} positions (zoom in for detail)`);
-    circle.on("click", () => showProvinceDetail(centroid, province, positions, lmias));
-    circle.addTo(state.layer);
-  }
-}
-
-function drawFsaCircles() {
-  const bounds = state.map.getBounds().pad(0.2);
   const placeholders = [...state.selectedPeriods].map(() => "?").join(",");
   const sql = `
     SELECT fsa, lat, lng, province, SUM(total_approved_positions) p, SUM(total_approved_lmias) l
     FROM lmia_map_points
     WHERE period IN (${placeholders})
-      AND lat BETWEEN ? AND ?
-      AND lng BETWEEN ? AND ?
     GROUP BY fsa, lat, lng, province
     HAVING p > 0
     ORDER BY p DESC`;
-  const params = [
-    ...state.selectedPeriods,
-    bounds.getSouth(),
-    bounds.getNorth(),
-    bounds.getWest(),
-    bounds.getEast(),
-  ];
-  const res = state.db.exec(sql, params);
+  const res = state.db.exec(sql, [...state.selectedPeriods]);
   const rows = res.length ? res[0].values : [];
 
+  const markers = [];
   for (const [fsa, lat, lng, province, positions, lmias] of rows) {
-    const circle = L.circleMarker([lat, lng], {
-      radius: radiusForPositions(positions, 40),
-      color: "#e4572e",
-      weight: 1,
-      fillColor: "#e4572e",
-      fillOpacity: 0.45,
-    });
-    circle.bindTooltip(`${fsa} — ${positions.toLocaleString()} positions`);
-    circle.on("click", () => showLocationDetail(lat, lng, fsa, province, positions, lmias));
-    circle.addTo(state.layer);
+    const marker = L.marker([lat, lng], { icon: pinIcon(), positions });
+    marker.bindTooltip(`${fsa} — ${positions.toLocaleString()} positions`);
+    marker.on("click", () => showLocationDetail(lat, lng, fsa, province, positions, lmias));
+    markers.push(marker);
   }
-}
-
-function showProvinceDetail(centroid, province, positions, lmias) {
-  const placeholders = [...state.selectedPeriods].map(() => "?").join(",");
-  const sql = `
-    SELECT fsa, SUM(total_approved_positions) p
-    FROM lmia_map_points
-    WHERE province = ? AND period IN (${placeholders})
-    GROUP BY fsa
-    HAVING p > 0
-    ORDER BY p DESC
-    LIMIT 10`;
-  const res = state.db.exec(sql, [province, ...state.selectedPeriods]);
-  const rows = res.length ? res[0].values : [];
-
-  let html = `<strong>${province}</strong><br>
-    ${positions.toLocaleString()} approved positions / ${lmias.toLocaleString()} approved LMIAs
-    in the selected quarter(s)<br><br>
-    <em>Top postal-code areas in this province:</em>
-    <table>`;
-  for (const [fsa, fsaPositions] of rows) {
-    html += `<tr><td>${escapeHtml(fsa)}</td><td>${fsaPositions.toLocaleString()} pos.</td></tr>`;
-  }
-  html += `</table><br><em>Zoom in on the map to see individual postal-code circles.</em>`;
-
-  L.popup({ maxWidth: 320 }).setLatLng(centroid).setContent(html).openOn(state.map);
+  state.clusterGroup.addLayers(markers);
 }
 
 function showLocationDetail(lat, lng, fsa, province, positions, lmias) {
