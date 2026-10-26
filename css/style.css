@@ -161,6 +161,15 @@ main.wrap {
   color: var(--text-dim);
 }
 
+.card-registry {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+}
+
+.card-registry a {
+  color: var(--accent);
+}
+
 .card-reasons {
   margin: 0 0 10px;
   padding-left: 18px;
