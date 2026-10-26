@@ -113,8 +113,41 @@ function drawYearlyTopOccupationChart(db, { canvasId, valueColumn, topN = 4 }) {
         x: { stacked: true, ticks: { color: "#9aa1ad" } },
         y: { stacked: true, ticks: { color: "#9aa1ad" } },
       },
+      onHover: (evt, elements, chart) => {
+        const el = elements[0];
+        const isOther = el && chart.data.datasets[el.datasetIndex].label === "Other";
+        evt.native.target.style.cursor = isOther ? "pointer" : "default";
+      },
+      onClick: (evt, elements, chart) => {
+        const el = elements[0];
+        if (!el) return;
+        if (chart.data.datasets[el.datasetIndex].label !== "Other") return;
+        const year = years[el.index];
+        downloadOtherOccupationsCsv(year, byYear.get(year), topSet, valueColumn);
+      },
     }),
   });
+}
+
+function downloadOtherOccupationsCsv(year, yearMap, topSet, valueColumn) {
+  const rows = [...yearMap.entries()]
+    .filter(([title]) => !topSet.has(title))
+    .sort((a, b) => b[1] - a[1]);
+
+  let csv = `occupation,${valueColumn}\n`;
+  for (const [title, value] of rows) {
+    csv += `"${title.replace(/"/g, '""')}",${value}\n`;
+  }
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `other-occupations-${year}-${valueColumn}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 function drawVolumeChart(db) {
