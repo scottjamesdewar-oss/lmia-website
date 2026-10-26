@@ -163,37 +163,6 @@ function render(rows) {
   els.nextPage.disabled = (state.page + 1) * PAGE_SIZE >= state.totalRows;
 }
 
-// Provincial/territorial numbered-company suffixes mapped to their
-// free official corporate-registry search tool. "Canada" gets the
-// federal search; anything else we don't recognize falls back to a
-// plain web search so the link still works without us guessing at
-// (and possibly breaking) every jurisdiction's URL.
-const REGISTRY_LINKS = {
-  CANADA: "https://ised-isde.canada.ca/cc/lgcy/fdrlCrpSrch.html?locale=en_CA",
-  ONTARIO: "https://www.ontario.ca/page/ontario-business-registry",
-  "BRITISH COLUMBIA": "https://www.bcregistry.gov.bc.ca/",
-  BC: "https://www.bcregistry.gov.bc.ca/",
-  MANITOBA: "https://companiesoffice.gov.mb.ca/",
-  "NOVA SCOTIA": "https://rjsc.novascotia.ca/",
-};
-const NUMBERED_COMPANY_RE = /^(\d{6,9})\s+([A-Za-z.& ]+?)\s+(Inc\.?|Ltd\.?|Limited|Corp\.?|Corporation)\b/i;
-
-function registryLinkFor(employer) {
-  const m = employer.match(NUMBERED_COMPANY_RE);
-  if (!m) return null;
-  const [, number, jurisdiction] = m;
-  const key = jurisdiction.trim().toUpperCase();
-  const url = REGISTRY_LINKS[key];
-  if (url) {
-    return { url, label: `Look up #${number} on the official ${jurisdiction.trim()} registry →` };
-  }
-  const query = encodeURIComponent(`"${number}" "${jurisdiction.trim()}" corporate registry`);
-  return {
-    url: `https://www.google.com/search?q=${query}`,
-    label: `Search for #${number} (${jurisdiction.trim()}) on a public registry →`,
-  };
-}
-
 function renderCard(row) {
   const [
     employer, address, province, streams, totalLmias,

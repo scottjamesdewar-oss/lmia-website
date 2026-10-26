@@ -209,11 +209,10 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
       <div class="drill-row-main">
         <div class="drill-row-name"></div>
         <div class="drill-row-sub"></div>
-        <div class="drill-row-info"></div>
       </div>
       <div class="drill-row-value"></div>`;
     const nameEl = row.querySelector(".drill-row-name");
-    nameEl.textContent = employer;
+    nameEl.appendChild(document.createTextNode(employer));
     if (isNc) {
       const flag = document.createElement("span");
       flag.style.color = "#ef4444";
@@ -221,22 +220,28 @@ function renderBusinessesLevel({ db, valueColumn, valueLabel, year, occupation, 
       flag.title = "Also found non-compliant";
       nameEl.appendChild(flag);
     }
-    row.querySelector(".drill-row-sub").textContent = address;
-    const infoEl = row.querySelector(".drill-row-info");
     const info = companyInfoFor(employerKey);
+    const registry = info ? null : registryLinkFor(employer);
     if (info) {
-      infoEl.textContent = info.description;
-      if (info.url) {
-        const a = document.createElement("a");
-        a.href = info.url;
-        a.target = "_blank";
-        a.rel = "noopener";
-        a.textContent = " Source";
-        infoEl.appendChild(a);
-      }
-    } else {
-      infoEl.remove();
+      const a = document.createElement("a");
+      a.href = info.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.className = "drill-row-info-link";
+      a.title = info.description;
+      a.textContent = " ℹ️";
+      nameEl.appendChild(a);
+    } else if (registry) {
+      const a = document.createElement("a");
+      a.href = registry.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.className = "drill-row-info-link";
+      a.title = registry.label;
+      a.textContent = " 🔎";
+      nameEl.appendChild(a);
     }
+    row.querySelector(".drill-row-sub").textContent = address;
     row.querySelector(".drill-row-value").textContent = `${value.toLocaleString()} ${valueLabel}`;
     frag.appendChild(row);
   }

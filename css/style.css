@@ -376,16 +376,9 @@ main.wrap {
   color: var(--text-dim);
 }
 
-.drill-row-info {
-  font-size: 0.78rem;
-  color: var(--text-dim);
-  margin-top: 4px;
-  max-width: 520px;
-}
-
-.drill-row-info a {
-  color: var(--accent);
-  white-space: nowrap;
+.drill-row-info-link {
+  text-decoration: none;
+  cursor: help;
 }
 
 .card-info {
