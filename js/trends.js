@@ -74,6 +74,7 @@ async function init() {
   drawFranchiseChart(db);
   drawOccupationChart(db);
   drawNumberedCompanyOccupationChart(db);
+  drawOrdinaryEmployerChart(db);
   drawStreamShareChart(db);
   drawProvinceChart(db);
 }
@@ -409,6 +410,23 @@ function drawNumberedCompanyOccupationChart(db) {
     data: {
       labels: rows.map((r) => truncate(r[0], 45)),
       datasets: [{ label: "Approved positions", data: rows.map((r) => r[1]), backgroundColor: "#8a5fbf" }],
+    },
+    options: baseOptions({ indexAxis: "y", plugins: { legend: { display: false } } }),
+  });
+}
+
+function drawOrdinaryEmployerChart(db) {
+  const res = db.exec(`
+    SELECT employer, province, total_approved_positions
+    FROM trend_ordinary_employer
+    ORDER BY total_approved_positions DESC
+    LIMIT 15`);
+  const rows = res.length ? res[0].values : [];
+  new Chart(document.getElementById("ordinaryEmployerChart"), {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => truncate(`${r[0]} (${r[1]})`, 45)),
+      datasets: [{ label: "Approved positions", data: rows.map((r) => r[2]), backgroundColor: "#2e9e6b" }],
     },
     options: baseOptions({ indexAxis: "y", plugins: { legend: { display: false } } }),
   });
