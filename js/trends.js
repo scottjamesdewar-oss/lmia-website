@@ -73,6 +73,7 @@ async function init() {
   drawLmiaCountByOccupationChart(db);
   drawFranchiseChart(db);
   drawOccupationChart(db);
+  drawNumberedCompanyOccupationChart(db);
   drawStreamShareChart(db);
   drawProvinceChart(db);
 }
@@ -391,6 +392,23 @@ function drawOccupationChart(db) {
     data: {
       labels: rows.map((r) => truncate(r[0], 45)),
       datasets: [{ label: "Approved positions", data: rows.map((r) => r[1]), backgroundColor: "#4a7ab5" }],
+    },
+    options: baseOptions({ indexAxis: "y", plugins: { legend: { display: false } } }),
+  });
+}
+
+function drawNumberedCompanyOccupationChart(db) {
+  const res = db.exec(`
+    SELECT occupation, total_approved_positions
+    FROM trend_numbered_occupation
+    ORDER BY total_approved_positions DESC
+    LIMIT 15`);
+  const rows = res.length ? res[0].values : [];
+  new Chart(document.getElementById("numberedOccupationChart"), {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => truncate(r[0], 45)),
+      datasets: [{ label: "Approved positions", data: rows.map((r) => r[1]), backgroundColor: "#8a5fbf" }],
     },
     options: baseOptions({ indexAxis: "y", plugins: { legend: { display: false } } }),
   });
