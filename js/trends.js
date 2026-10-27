@@ -77,6 +77,7 @@ async function init() {
   drawOrdinaryEmployerChart(db);
   drawStreamShareChart(db);
   drawProvinceChart(db);
+  drawEmployerChurnChart(db);
 }
 
 function cleanOccupationTitle(occupation) {
@@ -479,6 +480,58 @@ function drawProvinceChart(db) {
       datasets: [{ label: "Approved positions", data: rows.map((r) => r[1]), backgroundColor: "#c9a227" }],
     },
     options: baseOptions({ indexAxis: "y", plugins: { legend: { display: false } } }),
+  });
+}
+
+function drawEmployerChurnChart(db) {
+  const res = db.exec(
+    `SELECT year, new_positions, returning_positions, new_employers, returning_employers
+     FROM trend_employer_churn ORDER BY year`
+  );
+  const rows = res.length ? res[0].values : [];
+
+  new Chart(document.getElementById("employerChurnChart"), {
+    type: "bar",
+    data: {
+      labels: rows.map((r) => r[0]),
+      datasets: [
+        {
+          label: "First-time employers this year",
+          data: rows.map((r) => r[1]),
+          backgroundColor: "#4a7ab5",
+          stack: "positions",
+        },
+        {
+          label: "Returning employers (used it before)",
+          data: rows.map((r) => r[2]),
+          backgroundColor: "#e4572e",
+          stack: "positions",
+        },
+      ],
+    },
+    options: baseOptions({
+      scales: {
+        x: { stacked: true, ticks: { color: "#9aa1ad" } },
+        y: { stacked: true, ticks: { color: "#9aa1ad" } },
+      },
+      plugins: {
+        legend: { labels: { color: isDark() ? "#9aa1ad" : "#5b6270" } },
+        tooltip: {
+          mode: "index",
+          intersect: false,
+          callbacks: {
+            afterBody: (items) => {
+              const i = items[0].dataIndex;
+              return [
+                "",
+                `${rows[i][3].toLocaleString()} first-time employers`,
+                `${rows[i][4].toLocaleString()} returning employers`,
+              ];
+            },
+          },
+        },
+      },
+    }),
   });
 }
 
